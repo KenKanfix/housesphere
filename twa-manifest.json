@@ -1,0 +1,52 @@
+{
+  "packageId": "app.housesphere.twa",
+  "host": "housesphere.vercel.app",
+  "name": "HouseSphere",
+  "launcherName": "HouseSphere",
+  "display": "standalone",
+  "themeColor": "#0f766e",
+  "themeColorDark": "#0b3d38",
+  "navigationColor": "#0f766e",
+  "navigationColorDark": "#0b3d38",
+  "navigationDividerColor": "#0f766e",
+  "navigationDividerColorDark": "#0b3d38",
+  "backgroundColor": "#f4f2ec",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://housesphere.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://housesphere.vercel.app/icons/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "housesphere"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Add inventory item",
+      "shortName": "Inventory",
+      "url": "/inventory?new=1",
+      "chosenIconUrl": "https://housesphere.vercel.app/icons/icon-192.png"
+    },
+    {
+      "name": "Ask the AI assistant",
+      "shortName": "Assistant",
+      "url": "/assistant",
+      "chosenIconUrl": "https://housesphere.vercel.app/icons/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://housesphere.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://housesphere.vercel.app/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": []
+}

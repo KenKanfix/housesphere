@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --color-cream: #f4f2ec;
+  --color-surface: #ffffff;
+  --color-ink: #16211f;
+  --color-muted: #66736f;
+  --color-line: #e5e1d8;
+  --color-brand: #0f766e;
+  --color-brand-dark: #0b5a54;
+  --color-brand-soft: #e2f1ee;
+  --color-amber: #b45309;
+  --color-amber-soft: #fbf1de;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-ok: #157f3c;
+  --color-ok-soft: #e7f5ec;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100svh;
+    background-color: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-brand);
+    color: white;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    outline-color: var(--color-brand);
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+    cursor: pointer;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cfcbc1;
+    border-radius: 999px;
+    border: 3px solid var(--color-cream);
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .animate-in {
+    animation: fade-slide-in 180ms ease-out both;
+  }
+}
+
+@keyframes fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

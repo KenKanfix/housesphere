@@ -1,0 +1,496 @@
+import { useEffect, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { ArrowRight, FileText, KeyRound, Loader2, Package, ReceiptText, RefreshCw, ScanLine, Send, Sparkles, Trash2 } from 'lucide-react'
+import {
+  db,
+  EXPENSE_CATEGORIES,
+  ITEM_CATEGORIES,
+  now,
+  todayISO,
+  uid,
+  type DocumentType,
+  type ExpenseCategory,
+  type ItemCategory,
+} from '../lib/db'
+import { buildHouseholdContext } from '../lib/context'
+import { askAi, getAiStatus, scanImage, type AiStatus, type ScanKind } from '../lib/ai'
+import { useToast } from '../components/toastContext'
+import { Badge, Button, Card, IconButton, PageHeader, Tabs } from '../components/ui'
+import { PhotoInput } from '../components/PhotoInput'
+
+const SUGGESTIONS = [
+  'What maintenance is due soon?',
+  'Which warranties are expiring?',
+  'What should I service on my air conditioner?',
+  'How much have I spent on my kitchen project?',
+]
+
+function asString(data: Record<string, unknown>, key: string): string {
+  const value = data[key]
+  return typeof value === 'string' ? value : ''
+}
+
+function Row({ label, value }: { label: string; value?: string }) {
+  if (!value) return null
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-line py-2 last:border-0">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted">{label}</span>
+      <span className="max-w-[65%] text-right text-sm font-medium text-ink">{value}</span>
+    </div>
+  )
+}
+
+export function Assistant() {
+  const toast = useToast()
+  const [tab, setTab] = useState<'chat' | 'scan'>('chat')
+  const [status, setStatus] = useState<AiStatus | null>(null)
+
+  const messages = useLiveQuery(() => db.aiMessages.orderBy('createdAt').toArray(), []) ?? []
+  const rooms = useLiveQuery(() => db.rooms.toArray(), []) ?? []
+
+  const [input, setInput] = useState('')
+  const [thinking, setThinking] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const [kind, setKind] = useState<ScanKind>('label')
+  const [image, setImage] = useState<string | undefined>()
+  const [scanning, setScanning] = useState(false)
+  const [result, setResult] = useState<Record<string, unknown> | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const refreshStatus = () => {
+    void getAiStatus().then(setStatus)
+  }
+
+  useEffect(() => {
+    refreshStatus()
+  }, [])
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [messages.length, thinking])
+
+  const configured = Boolean(status?.configured)
+
+  const send = async (text?: string) => {
+    const content = (text ?? input).trim()
+    if (!content || thinking) return
+    setInput('')
+    setThinking(true)
+    try {
+      await db.aiMessages.put({ id: uid(), role: 'user', content, createdAt: now() })
+      const context = await buildHouseholdContext()
+      const history = [...messages.map((message) => ({ role: message.role, content: message.content })), { role: 'user' as const, content }]
+      const answer = await askAi(history, context)
+      await db.aiMessages.put({ id: uid(), role: 'assistant', content: answer, createdAt: now() })
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'The assistant could not answer right now.', 'error')
+    } finally {
+      setThinking(false)
+    }
+  }
+
+  const clearChat = async () => {
+    try {
+      await db.aiMessages.clear()
+      toast('Conversation cleared')
+    } catch {
+      toast('Could not clear the conversation', 'error')
+    }
+  }
+
+  const analyse = async () => {
+    if (!image || scanning) return
+    setScanning(true)
+    setResult(null)
+    try {
+      const data = await scanImage(kind, image)
+      setResult(data)
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not read that photo.', 'error')
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const saveLabel = async () => {
+    if (!result || !image) return
+    const room = rooms.find((entry) => entry.name === 'Other') ?? rooms[0]
+    if (!room) {
+      toast('Add a room in Inventory first.', 'error')
+      return
+    }
+    const categoryValue = asString(result, 'category')
+    const category = ITEM_CATEGORIES.some((entry) => entry.value === categoryValue)
+      ? (categoryValue as ItemCategory)
+      : 'Other'
+    setSaving(true)
+    try {
+      const timestamp = now()
+      await db.items.put({
+        id: uid(),
+        name: asString(result, 'name') || 'Scanned item',
+        roomId: room.id,
+        category,
+        brand: asString(result, 'brand') || undefined,
+        model: asString(result, 'model') || undefined,
+        serial: asString(result, 'serial') || undefined,
+        notes: asString(result, 'notes') || undefined,
+        photo: image,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      toast('Added to your inventory')
+      setResult(null)
+      setImage(undefined)
+    } catch {
+      toast('Could not save this item', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveReceipt = async () => {
+    if (!result) return
+    const amount = Number(result.amount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast('The amount could not be read. Add it manually in Expenses.', 'error')
+      return
+    }
+    const dateValue = asString(result, 'date')
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateValue) ? dateValue : todayISO()
+    const categoryValue = asString(result, 'category')
+    const category = EXPENSE_CATEGORIES.some((entry) => entry.value === categoryValue)
+      ? (categoryValue as ExpenseCategory)
+      : 'other'
+    setSaving(true)
+    try {
+      const timestamp = now()
+      await db.expenses.put({
+        id: uid(),
+        date,
+        category,
+        amount,
+        vendor: asString(result, 'vendor') || undefined,
+        description: asString(result, 'description') || undefined,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      toast('Expense saved')
+      setResult(null)
+      setImage(undefined)
+    } catch {
+      toast('Could not save this expense', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveManual = async () => {
+    if (!result || !image) return
+    const title = asString(result, 'title') || 'Appliance manual'
+    const type: DocumentType = 'manual'
+    setSaving(true)
+    try {
+      const timestamp = now()
+      await db.documents.put({
+        id: uid(),
+        title,
+        type,
+        issuer: asString(result, 'brand') || undefined,
+        reference: asString(result, 'model') || undefined,
+        notes: asString(result, 'notes') || undefined,
+        fileData: image,
+        fileName: `${title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.jpg`,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      toast('Manual saved to documents')
+      setResult(null)
+      setImage(undefined)
+    } catch {
+      toast('Could not save this manual', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const items = Array.isArray(result?.items) ? (result.items as unknown[]).filter((item): item is string => typeof item === 'string') : []
+
+  return (
+    <div>
+      <PageHeader
+        title="AI home assistant"
+        subtitle="Scan labels and receipts, or ask questions about the home information you have stored."
+        action={
+          <div className="flex items-center gap-2">
+            <Badge tone={configured ? 'ok' : 'amber'}>{configured ? `AI ready · ${status?.model ?? 'OpenAI'}` : 'Needs API key'}</Badge>
+            <IconButton label="Refresh AI status" onClick={refreshStatus}>
+              <RefreshCw className="size-4" />
+            </IconButton>
+          </div>
+        }
+      />
+
+      {status && !configured ? (
+        <Card className="mb-5 border-amber/30 bg-amber-soft/60 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-soft text-amber">
+              <KeyRound className="size-4" />
+            </div>
+            <div className="min-w-0 text-sm">
+              <p className="font-semibold text-ink">Connect the AI assistant</p>
+              <p className="mt-1 text-muted">
+                Set <code className="rounded bg-black/5 px-1 py-0.5 text-xs">OPENAI_API_KEY</code> in{' '}
+                <code className="rounded bg-black/5 px-1 py-0.5 text-xs">.env.local</code> for local development and in your Vercel
+                project&apos;s environment variables for production, then redeploy.
+              </p>
+              <p className="mt-2 text-xs text-muted/80">
+                The rest of HouseSphere works fully offline without it. Only the text or photo you send from this page goes to OpenAI.
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        className="mb-4 max-w-xs"
+        tabs={[
+          { value: 'chat', label: 'Chat' },
+          { value: 'scan', label: 'Scan a photo' },
+        ]}
+      />
+
+      {tab === 'chat' ? (
+        <Card className="flex h-[64svh] min-h-[460px] flex-col overflow-hidden lg:h-[66svh]">
+          <div className="flex items-center justify-between border-b border-line bg-surface px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                <Sparkles className="size-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-ink">HouseSphere assistant</p>
+                <p className="text-[11px] text-muted">Knows the information stored in this app</p>
+              </div>
+            </div>
+            {messages.length > 0 ? (
+              <Button size="sm" variant="ghost" onClick={clearChat} icon={<Trash2 className="size-3.5" />}>
+                Clear
+              </Button>
+            ) : null}
+          </div>
+
+          <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto bg-cream/50 px-4 py-4">
+            {messages.length === 0 ? (
+              <div className="mx-auto max-w-md py-8 text-center">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand">
+                  <Sparkles className="size-6" />
+                </div>
+                <p className="mt-3 text-base font-semibold text-ink">Ask anything about your home</p>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+                  Your inventory, warranties, tasks and expenses are available as context. Try one of these:
+                </p>
+                <div className="mt-4 flex flex-col gap-2">
+                  {SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      disabled={thinking}
+                      onClick={() => void send(suggestion)}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-left text-sm text-ink transition-colors hover:border-brand/40 hover:bg-brand-soft/30 disabled:opacity-60"
+                    >
+                      {suggestion}
+                      <ArrowRight className="size-4 shrink-0 text-muted" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              messages.map((message) =>
+                message.role === 'user' ? (
+                  <div key={message.id} className="flex justify-end">
+                    <div className="max-w-[85%]">
+                      <div className="whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand px-4 py-2.5 text-sm text-white">
+                        {message.content}
+                      </div>
+                      <p className="mt-1 text-right text-[10px] text-muted">
+                        {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={message.id} className="flex gap-2.5">
+                    <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                      <Sparkles className="size-3.5" />
+                    </div>
+                    <div className="max-w-[85%]">
+                      <div className="whitespace-pre-wrap rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-2.5 text-sm text-ink">
+                        {message.content}
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted">
+                        {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ),
+              )
+            )}
+
+            {thinking ? (
+              <div className="flex gap-2.5">
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                  <Sparkles className="size-3.5" />
+                </div>
+                <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3 text-sm text-muted">
+                  <Loader2 className="size-4 animate-spin text-brand" />
+                  Thinking about your home…
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="border-t border-line bg-surface p-3">
+            <div className="flex items-end gap-2">
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    void send()
+                  }
+                }}
+                rows={1}
+                placeholder="Ask about warranties, maintenance, expenses…"
+                className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-line bg-cream/60 px-3.5 py-2.5 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/15"
+              />
+              <Button
+                onClick={() => void send()}
+                disabled={!input.trim() || thinking || !configured}
+                aria-label="Send message"
+                className="size-11 shrink-0 px-0"
+              >
+                <Send className="size-4" />
+              </Button>
+            </div>
+            <p className="mt-1.5 px-1 text-[10px] text-muted">Enter to send · Shift+Enter for a new line</p>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          <Card className="p-5">
+            <div className="flex items-center gap-2">
+              <div className="flex size-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
+                <ScanLine className="size-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-ink">Scan a label, receipt or manual</h2>
+                <p className="text-xs text-muted">Point the camera at the important details.</p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <Tabs
+                value={kind}
+                onChange={(value) => {
+                  setKind(value)
+                  setResult(null)
+                }}
+                tabs={[
+                  { value: 'label', label: 'Appliance label' },
+                  { value: 'receipt', label: 'Receipt' },
+                  { value: 'manual', label: 'Manual' },
+                ]}
+              />
+            </div>
+
+            <div className="mt-4">
+              <PhotoInput value={image} onChange={(value) => { setImage(value); setResult(null) }} label="Photo" maxSize={1400} />
+            </div>
+
+            <Button
+              className="mt-4 w-full"
+              onClick={() => void analyse()}
+              loading={scanning}
+              disabled={!image || !configured}
+              icon={<ScanLine className="size-4" />}
+            >
+              Analyse photo
+            </Button>
+            {!configured ? <p className="mt-2 text-xs text-muted">Add the OpenAI API key to enable scanning.</p> : null}
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold text-ink">Extracted details</h2>
+            {result ? (
+              <div className="mt-3 animate-in">
+                {kind === 'label' ? (
+                  <>
+                    <Row label="Name" value={asString(result, 'name')} />
+                    <Row label="Brand" value={asString(result, 'brand')} />
+                    <Row label="Model" value={asString(result, 'model')} />
+                    <Row label="Serial" value={asString(result, 'serial')} />
+                    <Row label="Category" value={asString(result, 'category')} />
+                    <Row label="Notes" value={asString(result, 'notes')} />
+                    <Button className="mt-4 w-full" onClick={() => void saveLabel()} loading={saving} icon={<Package className="size-4" />}>
+                      Add to inventory
+                    </Button>
+                  </>
+                ) : kind === 'receipt' ? (
+                  <>
+                    <Row label="Vendor" value={asString(result, 'vendor')} />
+                    <Row label="Date" value={asString(result, 'date')} />
+                    <Row label="Amount" value={result.amount !== undefined ? String(result.amount) : ''} />
+                    <Row label="Category" value={asString(result, 'category')} />
+                    <Row label="Description" value={asString(result, 'description')} />
+                    {items.length > 0 ? (
+                      <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted">
+                        {items.map((item, index) => (
+                          <li key={index}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <Button className="mt-4 w-full" onClick={() => void saveReceipt()} loading={saving} icon={<ReceiptText className="size-4" />}>
+                      Save as expense
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Row label="Title" value={asString(result, 'title')} />
+                    <Row label="Brand" value={asString(result, 'brand')} />
+                    <Row label="Model" value={asString(result, 'model')} />
+                    <Row label="Notes" value={asString(result, 'notes')} />
+                    <Button className="mt-4 w-full" onClick={() => void saveManual()} loading={saving} icon={<FileText className="size-4" />}>
+                      Save to documents
+                    </Button>
+                  </>
+                )}
+                <Button variant="ghost" className="mt-2 w-full" onClick={() => { setResult(null); setImage(undefined) }}>
+                  Scan another
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-6 rounded-xl border border-dashed border-line bg-cream/60 px-4 py-8 text-center">
+                <ScanLine className="mx-auto size-7 text-muted/60" />
+                <p className="mt-2 text-sm font-medium text-ink">Nothing scanned yet</p>
+                <p className="mx-auto mt-1 max-w-xs text-xs text-muted">
+                  {kind === 'label'
+                    ? 'Photograph the rating plate or sticker on an appliance to capture the brand, model and serial number.'
+                    : kind === 'receipt'
+                      ? 'Photograph a receipt and HouseSphere can turn it into an expense entry.'
+                      : 'Photograph the cover of a manual to save it with your home documents.'}
+                </p>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      <p className="mt-5 text-center text-[11px] text-muted/80">
+        AI features use OpenAI. Your household data stays on this device except for the context sent when you ask a question.
+      </p>
+    </div>
+  )
+}
