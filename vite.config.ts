@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => {
       localAiApi(env),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
+        includeAssets: ['favicon-32.png', 'icons/apple-touch-icon.png'],
         manifest: {
           name: 'HouseSphere — Your home, in one place',
           short_name: 'HouseSphere',

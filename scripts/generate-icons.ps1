@@ -1,80 +1,65 @@
 Add-Type -AssemblyName System.Drawing
 
-$outDir = Join-Path $PSScriptRoot "..\public\icons"
+$root = Split-Path -Parent $PSScriptRoot
+$sourcePath = Join-Path $root "housesphere.png"
+if (-not (Test-Path -LiteralPath $sourcePath)) {
+  throw "Source icon not found: $sourcePath"
+}
+
+$outDir = Join-Path $root "public\icons"
 if (-not (Test-Path -LiteralPath $outDir)) {
   New-Item -ItemType Directory -Path $outDir | Out-Null
 }
 
-function New-RoundedPath([float]$x, [float]$y, [float]$w, [float]$h, [float]$r) {
-  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $d = $r * 2
-  $path.AddArc($x, $y, $d, $d, 180, 90)
-  $path.AddArc($x + $w - $d, $y, $d, $d, 270, 90)
-  $path.AddArc($x + $w - $d, $y + $h - $d, $d, $d, 0, 90)
-  $path.AddArc($x, $y + $h - $d, $d, $d, 90, 90)
-  $path.CloseFigure()
-  return $path
-}
+$source = [System.Drawing.Bitmap]::FromFile($sourcePath)
 
-function New-Icon([int]$size, [string]$file, [float]$contentScale, [bool]$rounded) {
-  $bmp = New-Object System.Drawing.Bitmap($size, $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-  $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-  $g.Clear([System.Drawing.Color]::Transparent)
-
-  $rect = New-Object System.Drawing.Rectangle(0, 0, $size, $size)
-  $brandA = [System.Drawing.ColorTranslator]::FromHtml("#0F766E")
-  $brandB = [System.Drawing.ColorTranslator]::FromHtml("#064E3B")
-  $gradient = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $brandA, $brandB, 45.0)
-
-  if ($rounded) {
-    $bgPath = New-RoundedPath 0 0 $size $size ([float]($size * 0.22))
-    $g.FillPath($gradient, $bgPath)
-    $bgPath.Dispose()
-  } else {
-    $g.FillRectangle($gradient, $rect)
+function Get-CornerColor([System.Drawing.Bitmap]$image) {
+  $points = @(
+    @(4, 4),
+    @(($image.Width - 5), 4),
+    @(4, ($image.Height - 5)),
+    @(($image.Width - 5), ($image.Height - 5))
+  )
+  $r = 0; $g = 0; $b = 0
+  foreach ($point in $points) {
+    $color = $image.GetPixel($point[0], $point[1])
+    $r += $color.R; $g += $color.G; $b += $color.B
   }
-
-  $cx = $size / 2.0
-  $cy = $size / 2.0
-  $s = $size * $contentScale
-  $g.TranslateTransform($cx, $cy)
-  $g.ScaleTransform($s, $s)
-
-  $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-  $amber = New-Object System.Drawing.SolidBrush([System.Drawing.ColorTranslator]::FromHtml("#FCD34D"))
-
-  $roof = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $roof.AddPolygon(@(
-    (New-Object System.Drawing.PointF(-0.36, 0.03)),
-    (New-Object System.Drawing.PointF(0.0, -0.30)),
-    (New-Object System.Drawing.PointF(0.36, 0.03))
-  ))
-  $g.FillPath($white, $roof)
-
-  $body = New-RoundedPath ([float]-0.27) ([float]0.01) ([float]0.54) ([float]0.34) ([float]0.045)
-  $g.FillPath($white, $body)
-
-  $g.FillEllipse($amber, [float]-0.10, [float]0.09, [float]0.20, [float]0.20)
-  $inner = New-Object System.Drawing.SolidBrush([System.Drawing.ColorTranslator]::FromHtml("#0F766E"))
-  $g.FillEllipse($inner, [float]-0.055, [float]0.135, [float]0.11, [float]0.11)
-
-  $g.Dispose()
-  $bmp.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
-  $bmp.Dispose()
-  $gradient.Dispose()
-  $white.Dispose()
-  $amber.Dispose()
-  $inner.Dispose()
-  $roof.Dispose()
-  $body.Dispose()
+  $count = $points.Count
+  return [System.Drawing.Color]::FromArgb(255, [int]($r / $count), [int]($g / $count), [int]($b / $count))
 }
 
-New-Icon 192 (Join-Path $outDir "icon-192.png") 0.58 $true
-New-Icon 512 (Join-Path $outDir "icon-512.png") 0.58 $true
-New-Icon 512 (Join-Path $outDir "icon-maskable-512.png") 0.46 $false
-New-Icon 180 (Join-Path $outDir "apple-touch-icon.png") 0.58 $true
+$background = Get-CornerColor $source
 
-Write-Output "Icons written to $outDir"
+function New-Icon([int]$size, [string]$file, [double]$contentScale) {
+  $bitmap = New-Object System.Drawing.Bitmap($size, $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+  $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+  $graphics.Clear($background)
+
+  $drawSize = [int][Math]::Round($size * $contentScale)
+  $offset = [int](($size - $drawSize) / 2)
+  $rect = New-Object System.Drawing.Rectangle($offset, $offset, $drawSize, $drawSize)
+  $graphics.DrawImage($source, $rect)
+
+  $graphics.Dispose()
+  $bitmap.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
+  $bitmap.Dispose()
+}
+
+New-Icon 192 (Join-Path $outDir "icon-192.png") 1.0
+New-Icon 512 (Join-Path $outDir "icon-512.png") 1.0
+New-Icon 512 (Join-Path $outDir "icon-maskable-512.png") 0.82
+New-Icon 180 (Join-Path $outDir "apple-touch-icon.png") 1.0
+New-Icon 32 (Join-Path $root "public\favicon-32.png") 1.0
+
+$source.Dispose()
+Write-Output "Icons written to $outDir from $sourcePath"
+
+$python = Get-Command python -ErrorAction SilentlyContinue
+if ($python) {
+  & $python.Source (Join-Path $PSScriptRoot "optimize-icons.py")
+}

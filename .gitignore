@@ -33,3 +33,5 @@ keystore-passwords.txt
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
