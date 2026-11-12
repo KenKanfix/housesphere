@@ -1,12 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { handleAiRequest } from '../server/aiHandler.js'
+import { getAiStatus, handleAiRequest } from '../server/aiHandler.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
-    res.status(200).json({
-      configured: Boolean(process.env.OPENAI_API_KEY),
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    })
+    res.status(200).json(getAiStatus(process.env))
     return
   }
 
@@ -30,6 +27,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
     OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_MODEL: process.env.GEMINI_MODEL,
+    AI_PROVIDER: process.env.AI_PROVIDER,
   })
 
   res.status(result.status).json(result.body)

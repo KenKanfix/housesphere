@@ -224,7 +224,7 @@ export function Assistant() {
         subtitle="Scan labels and receipts, or ask questions about the home information you have stored."
         action={
           <div className="flex items-center gap-2">
-            <Badge tone={configured ? 'ok' : 'amber'}>{configured ? `AI ready · ${status?.model ?? 'OpenAI'}` : 'Needs API key'}</Badge>
+            <Badge tone={configured ? 'ok' : 'amber'}>{configured ? `AI ready · ${status?.model ?? 'AI'}` : 'Needs API key'}</Badge>
             <IconButton label="Refresh AI status" onClick={refreshStatus}>
               <RefreshCw className="size-4" />
             </IconButton>
@@ -241,12 +241,14 @@ export function Assistant() {
             <div className="min-w-0 text-sm">
               <p className="font-semibold text-ink">Connect the AI assistant</p>
               <p className="mt-1 text-muted">
-                Set <code className="rounded bg-black/5 px-1 py-0.5 text-xs">OPENAI_API_KEY</code> in{' '}
+                Set <code className="rounded bg-black/5 px-1 py-0.5 text-xs">GEMINI_API_KEY</code> (or{' '}
+                <code className="rounded bg-black/5 px-1 py-0.5 text-xs">OPENAI_API_KEY</code>) in{' '}
                 <code className="rounded bg-black/5 px-1 py-0.5 text-xs">.env.local</code> for local development and in your Vercel
                 project&apos;s environment variables for production, then redeploy.
               </p>
               <p className="mt-2 text-xs text-muted/80">
-                The rest of HouseSphere works fully offline without it. Only the text or photo you send from this page goes to OpenAI.
+                The rest of HouseSphere works fully offline without it. Only the text or photo you send from this page goes to your AI
+                provider.
               </p>
             </div>
           </div>
@@ -419,7 +421,7 @@ export function Assistant() {
             >
               Analyse photo
             </Button>
-            {!configured ? <p className="mt-2 text-xs text-muted">Add the OpenAI API key to enable scanning.</p> : null}
+            {!configured ? <p className="mt-2 text-xs text-muted">Add an AI API key to enable scanning.</p> : null}
           </Card>
 
           <Card className="p-5">
@@ -489,7 +491,8 @@ export function Assistant() {
       )}
 
       <p className="mt-5 text-center text-[11px] text-muted/80">
-        AI features use OpenAI. Your household data stays on this device except for the context sent when you ask a question.
+        AI features use Google Gemini or OpenAI. Your household data stays on this device except for the context sent when you ask a
+        question.
       </p>
     </div>
   )

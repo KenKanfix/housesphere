@@ -3,6 +3,7 @@ import type { ChatMessage } from '../../server/aiHandler'
 export interface AiStatus {
   configured: boolean
   model?: string
+  provider?: 'gemini' | 'openai'
 }
 
 export type ScanKind = 'label' | 'receipt' | 'manual'
@@ -22,7 +23,7 @@ export async function getAiStatus(): Promise<AiStatus> {
     const response = await fetch('/api/ai')
     if (!response.ok) return { configured: false }
     const body = (await response.json()) as AiStatus
-    return { configured: Boolean(body.configured), model: body.model }
+    return { configured: Boolean(body.configured), model: body.model, provider: body.provider }
   } catch {
     return { configured: false }
   }

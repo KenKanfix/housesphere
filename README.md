@@ -22,7 +22,7 @@ All household data is stored locally in the browser with IndexedDB. There is no 
 - Tailwind CSS v4
 - Dexie (IndexedDB) + `dexie-react-hooks`
 - `vite-plugin-pwa` (Workbox) for offline support
-- OpenAI Chat Completions via a small serverless endpoint (Vercel) or Vite dev middleware
+- Google Gemini (native API) or OpenAI Chat Completions via a small serverless endpoint (Vercel) or Vite dev middleware
 - Bubblewrap CLI for Android TWA packaging
 
 ## Quick start
@@ -35,15 +35,20 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:5173. The AI assistant is optional: set `OPENAI_API_KEY` in `.env.local` to enable it, otherwise the app reports that it is not configured.
+Open http://localhost:5173. The AI assistant is optional: set `GEMINI_API_KEY` (or `OPENAI_API_KEY`) in `.env.local` to enable it, otherwise the app reports that it is not configured.
 
 ### Environment variables
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | No | Enables the AI assistant and image scanning. Server-side only. |
-| `OPENAI_MODEL` | No | Chat model, defaults to `gpt-4o-mini`. |
+| `AI_PROVIDER` | No | `gemini` or `openai`. Defaults to Gemini when `GEMINI_API_KEY` is set. |
+| `GEMINI_API_KEY` | No | Google AI Studio key. Enables the assistant and image scanning. Server-side only. |
+| `GEMINI_MODEL` | No | Gemini model, defaults to `gemini-3.8-flash`. |
+| `OPENAI_API_KEY` | No | OpenAI key, used when `AI_PROVIDER=openai`. Server-side only. |
+| `OPENAI_MODEL` | No | OpenAI chat model, defaults to `gpt-4o-mini`. |
 | `OPENAI_BASE_URL` | No | Override the OpenAI-compatible API base URL. |
+
+Google AI Studio now issues `AQ.` authorization keys. HouseSphere calls Gemini's native API, so both `AQ.` and older `AIza` keys work. Do not use the OpenAI-compatible `/v1beta/openai` route with an `AQ.` key.
 
 Never expose the API key to the client. The key is read only by `api/ai.ts` in production and by the Vite dev middleware locally.
 
@@ -62,7 +67,7 @@ Never expose the API key to the client. The key is read only by `api/ai.ts` in p
 ## Deploying to Vercel
 
 1. Push the project to GitHub, or run `npx vercel` from the project root.
-2. Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) in the Vercel project's environment variables.
+2. Set `AI_PROVIDER=gemini`, `GEMINI_API_KEY`, and optionally `GEMINI_MODEL=gemini-3.8-flash` in the Vercel project's environment variables. Use `OPENAI_API_KEY` instead if you prefer OpenAI.
 3. Deploy. `vercel.json` handles the SPA rewrite, `api/ai.ts` and the `/.well-known/` path.
 
 The PWA works fully without the AI endpoint. Offline caching is handled automatically after the first visit.
@@ -147,7 +152,7 @@ Use Google's [Statement List Generator and Tester](https://developers.google.com
 
 ### 5. Publish
 
-Upload the `.aab` to the Play Console, complete the data safety form (the app stores data locally; AI requests are sent to OpenAI only when used) and roll out. For each update, increment `appVersionCode` (and usually `appVersionName`) in `twa-manifest.json` before rebuilding.
+Upload the `.aab` to the Play Console, complete the data safety form (the app stores data locally; AI requests are sent to Google Gemini or OpenAI only when used) and roll out. For each update, increment `appVersionCode` (and usually `appVersionName`) in `twa-manifest.json` before rebuilding.
 
 ### CI build
 
@@ -205,4 +210,4 @@ vercel.json          SPA rewrites and headers
 
 - **Address bar visible in the Android app** — asset links are missing, unreachable, use the wrong package ID or the wrong signing fingerprint. Re-deploy and re-test.
 - **Bubblewrap PWA validation fails** — confirm the site is publicly reachable over HTTPS and icons resolve; CI uses `--skipPwaValidation` because assets may not be deployed yet.
-- **AI says not configured** — set `OPENAI_API_KEY` and restart the dev server or redeploy.
+- **AI says not configured** — set `GEMINI_API_KEY` (or `OPENAI_API_KEY`) and restart the dev server or redeploy.

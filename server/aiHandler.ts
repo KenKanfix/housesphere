@@ -2,6 +2,9 @@ export interface AiEnv {
   OPENAI_API_KEY?: string
   OPENAI_MODEL?: string
   OPENAI_BASE_URL?: string
+  GEMINI_API_KEY?: string
+  GEMINI_MODEL?: string
+  AI_PROVIDER?: string
 }
 
 export interface ChatMessage {
@@ -22,7 +25,51 @@ export interface AiResult {
   body: Record<string, unknown>
 }
 
-const DEFAULT_MODEL = 'gpt-4o-mini'
+export type AiProvider = 'gemini' | 'openai'
+
+export interface AiStatus {
+  configured: boolean
+  provider: AiProvider
+  model: string
+}
+
+interface ModelMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+interface ModelRequest {
+  model: string
+  temperature: number
+  maxTokens: number
+  system?: string
+  messages?: ModelMessage[]
+  prompt?: string
+  image?: string
+  json?: boolean
+}
+
+interface ProviderResult {
+  ok: boolean
+  status: number
+  text?: string
+  payload?: any
+}
+
+interface GeminiPart {
+  text?: string
+  thought?: boolean
+  inlineData?: { mimeType: string; data: string }
+}
+
+interface GeminiContent {
+  role: 'user' | 'model'
+  parts: GeminiPart[]
+}
+
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
+const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash'
+const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 const SCAN_PROMPTS: Record<string, string> = {
   label: `You are reading a photo of an appliance or product label.
@@ -58,6 +105,32 @@ Return ONLY a JSON object with this exact shape:
 }`,
 }
 
+function geminiKey(env: AiEnv): string | undefined {
+  return env.GEMINI_API_KEY || env.OPENAI_API_KEY
+}
+
+function geminiModel(env: AiEnv): string {
+  if (env.GEMINI_MODEL) return env.GEMINI_MODEL
+  if (env.OPENAI_MODEL?.startsWith('gemini-')) return env.OPENAI_MODEL
+  return DEFAULT_GEMINI_MODEL
+}
+
+function resolveProvider(env: AiEnv): AiProvider {
+  if (env.AI_PROVIDER === 'gemini' || env.AI_PROVIDER === 'openai') {
+    return env.AI_PROVIDER
+  }
+  if (env.GEMINI_API_KEY) return 'gemini'
+  if (env.OPENAI_BASE_URL?.includes('generativelanguage.googleapis.com')) return 'gemini'
+  return 'openai'
+}
+
+export function getAiStatus(env: AiEnv): AiStatus {
+  const provider = resolveProvider(env)
+  const model = provider === 'gemini' ? geminiModel(env) : env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL
+  const configured = provider === 'gemini' ? Boolean(geminiKey(env)) : Boolean(env.OPENAI_API_KEY)
+  return { configured, provider, model }
+}
+
 function extractJson(text: string): unknown {
   const cleaned = text
     .trim()
@@ -89,11 +162,48 @@ You may suggest sensible maintenance schedules based on the appliances listed.`
   return `${base}\n\nHere is the household's current stored information:\n${context}`
 }
 
+function parseDataUrl(image: string): { mimeType: string; data: string } | null {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(image)
+  if (!match) return null
+  return { mimeType: match[1], data: match[2] }
+}
+
 async function callOpenAI(
   env: AiEnv,
-  body: Record<string, unknown>,
-): Promise<{ ok: boolean; status: number; payload: any }> {
+  request: ModelRequest,
+): Promise<ProviderResult> {
   const baseUrl = env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
+  const messages: Record<string, unknown>[] = []
+
+  if (request.system) {
+    messages.push({ role: 'system', content: request.system })
+  }
+
+  if (request.prompt) {
+    const content: Record<string, unknown>[] = [{ type: 'text', text: request.prompt }]
+    if (request.image) {
+      content.push({ type: 'image_url', image_url: { url: request.image, detail: 'high' } })
+    }
+    messages.push({ role: 'user', content })
+  } else {
+    messages.push(
+      ...(request.messages ?? []).map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+    )
+  }
+
+  const body: Record<string, unknown> = {
+    model: request.model,
+    temperature: request.temperature,
+    max_tokens: request.maxTokens,
+    messages,
+  }
+  if (request.json) {
+    body.response_format = { type: 'json_object' }
+  }
+
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -105,21 +215,120 @@ async function callOpenAI(
   })
 
   const payload = await response.json().catch(() => ({}))
-  return { ok: response.ok, status: response.status, payload }
+  const text = payload?.choices?.[0]?.message?.content
+  return {
+    ok: response.ok,
+    status: response.status,
+    text: typeof text === 'string' ? text : undefined,
+    payload,
+  }
+}
+
+async function callGemini(
+  env: AiEnv,
+  request: ModelRequest,
+): Promise<ProviderResult> {
+  const contents: GeminiContent[] = []
+
+  if (request.prompt) {
+    const parts: GeminiPart[] = [{ text: request.prompt }]
+    if (request.image) {
+      const image = parseDataUrl(request.image)
+      if (image) {
+        parts.push({ inlineData: image })
+      }
+    }
+    contents.push({ role: 'user', parts })
+  } else {
+    for (const message of request.messages ?? []) {
+      contents.push({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: message.content }],
+      })
+    }
+  }
+
+  const generationConfig: Record<string, unknown> = {
+    temperature: request.temperature,
+    maxOutputTokens: Math.max(request.maxTokens, 2048),
+  }
+  if (request.json) {
+    generationConfig.responseMimeType = 'application/json'
+  }
+
+  const body: Record<string, unknown> = {
+    contents,
+    generationConfig,
+  }
+  if (request.system) {
+    body.systemInstruction = { parts: [{ text: request.system }] }
+  }
+
+  const response = await fetch(`${GEMINI_ENDPOINT}/${encodeURIComponent(request.model)}:generateContent`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': geminiKey(env) ?? '',
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60_000),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  const parts = payload?.candidates?.[0]?.content?.parts
+  const text = Array.isArray(parts)
+    ? parts
+        .filter((part: GeminiPart) => part && !part.thought && typeof part.text === 'string')
+        .map((part: GeminiPart) => part.text)
+        .join('')
+        .trim()
+    : ''
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    text: text || undefined,
+    payload,
+  }
+}
+
+function requestError(provider: AiProvider, status: number, payload?: any): string {
+  const detail =
+    typeof payload?.error?.message === 'string' ? payload.error.message : undefined
+
+  if (status === 401 || status === 403) {
+    return provider === 'gemini'
+      ? 'Google AI Studio rejected the API key. Check GEMINI_API_KEY.'
+      : 'OpenAI rejected the API key. Check OPENAI_API_KEY.'
+  }
+  if (status === 429) {
+    return 'The AI rate limit was reached. Please try again shortly.'
+  }
+  if (status === 400) {
+    return detail
+      ? `The AI provider rejected the request: ${detail}`
+      : 'The AI provider rejected the request. Please try again.'
+  }
+  return `AI request failed (${status}). Please try again.`
 }
 
 export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<AiResult> {
-  if (!env.OPENAI_API_KEY) {
+  const status = getAiStatus(env)
+
+  if (!status.configured) {
     return {
       status: 503,
       body: {
         error:
-          'The AI assistant is not configured yet. Add OPENAI_API_KEY to your environment (see .env.example) and redeploy.',
+          status.provider === 'gemini'
+            ? 'The AI assistant is not configured yet. Add GEMINI_API_KEY (or OPENAI_API_KEY) to your environment (see .env.example) and redeploy.'
+            : 'The AI assistant is not configured yet. Add OPENAI_API_KEY to your environment (see .env.example) and redeploy.',
       },
     }
   }
 
-  const model = env.OPENAI_MODEL || DEFAULT_MODEL
+  const provider = status.provider
+  const model = status.model
 
   try {
     if (body.mode === 'scan') {
@@ -132,36 +341,33 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
         return { status: 400, body: { error: 'Unknown scan type.' } }
       }
 
-      const result = await callOpenAI(env, {
-        model,
-        temperature: 0.1,
-        max_tokens: 700,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: body.image, detail: 'high' } },
-            ],
-          },
-        ],
-      })
+      const result =
+        provider === 'gemini'
+          ? await callGemini(env, {
+              model,
+              temperature: 0.1,
+              maxTokens: 2048,
+              prompt,
+              image: body.image,
+              json: true,
+            })
+          : await callOpenAI(env, {
+              model,
+              temperature: 0.1,
+              maxTokens: 700,
+              prompt,
+              image: body.image,
+              json: true,
+            })
 
       if (!result.ok) {
         return {
-          status: result.status === 401 ? 502 : 502,
-          body: {
-            error:
-              result.status === 401
-                ? 'OpenAI rejected the API key. Check OPENAI_API_KEY.'
-                : `AI request failed (${result.status}). Please try again.`,
-          },
+          status: 502,
+          body: { error: requestError(provider, result.status, result.payload) },
         }
       }
 
-      const text = result.payload?.choices?.[0]?.message?.content ?? ''
-      const data = extractJson(text)
+      const data = result.text ? extractJson(result.text) : null
       if (!data) {
         return { status: 502, body: { error: 'The AI response could not be read. Try a clearer photo.' } }
       }
@@ -174,40 +380,42 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
       .map((message) => ({
         role: message.role === 'assistant' ? 'assistant' : 'user',
         content: message.content,
-      }))
+      })) as ModelMessage[]
 
     if (messages.length === 0) {
       return { status: 400, body: { error: 'A question is required.' } }
     }
 
-    const result = await callOpenAI(env, {
-      model,
-      temperature: 0.4,
-      max_tokens: 900,
-      messages: [
-        { role: 'system', content: buildChatSystem(body.context) },
-        ...messages,
-      ],
-    })
+    const system = buildChatSystem(body.context)
+    const result =
+      provider === 'gemini'
+        ? await callGemini(env, {
+            model,
+            temperature: 0.4,
+            maxTokens: 4096,
+            system,
+            messages,
+          })
+        : await callOpenAI(env, {
+            model,
+            temperature: 0.4,
+            maxTokens: 900,
+            system,
+            messages,
+          })
 
     if (!result.ok) {
       return {
         status: 502,
-        body: {
-          error:
-            result.status === 401
-              ? 'OpenAI rejected the API key. Check OPENAI_API_KEY.'
-              : `AI request failed (${result.status}). Please try again.`,
-        },
+        body: { error: requestError(provider, result.status, result.payload) },
       }
     }
 
-    const text = result.payload?.choices?.[0]?.message?.content
-    if (typeof text !== 'string' || !text.trim()) {
+    if (!result.text?.trim()) {
       return { status: 502, body: { error: 'The AI returned an empty response.' } }
     }
 
-    return { status: 200, body: { text } }
+    return { status: 200, body: { text: result.text } }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return { status: 502, body: { error: `Could not reach the AI service: ${message}` } }

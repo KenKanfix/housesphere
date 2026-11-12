@@ -325,18 +325,20 @@ export function SettingsPage() {
               <div>
                 <h2 className="text-sm font-semibold text-ink">AI home assistant</h2>
                 <p className="mt-0.5 max-w-md text-xs text-muted">
-                  Uses your own OpenAI API key via a server-side function, so the key is never stored in the browser.
+                  Uses your own Google AI Studio or OpenAI key via a server-side function, so the key is never stored in the browser.
                 </p>
               </div>
             </div>
             <Badge tone={aiStatus?.configured ? 'ok' : 'amber'}>
-              {aiStatus?.configured ? `Ready · ${aiStatus.model ?? 'OpenAI'}` : 'Not configured'}
+              {aiStatus?.configured ? `Ready · ${aiStatus.model ?? 'AI'}` : 'Not configured'}
             </Badge>
           </div>
           <div className="mt-3 rounded-xl bg-cream px-3.5 py-3 text-xs text-muted">
             <p>
-              Add <code className="rounded bg-black/5 px-1 py-0.5">OPENAI_API_KEY</code> to <code className="rounded bg-black/5 px-1 py-0.5">.env.local</code>{' '}
-              locally and to your Vercel environment variables in production.
+              Add <code className="rounded bg-black/5 px-1 py-0.5">GEMINI_API_KEY</code> (or{' '}
+              <code className="rounded bg-black/5 px-1 py-0.5">OPENAI_API_KEY</code>) to{' '}
+              <code className="rounded bg-black/5 px-1 py-0.5">.env.local</code> locally and to your Vercel environment variables in
+              production.
             </p>
           </div>
           <div className="mt-3 flex justify-end gap-2">

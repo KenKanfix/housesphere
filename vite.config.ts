@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import { handleAiRequest } from './server/aiHandler.ts'
+import { getAiStatus, handleAiRequest } from './server/aiHandler.ts'
 
 function localAiApi(env: Record<string, string>) {
   return {
@@ -16,7 +16,7 @@ function localAiApi(env: Record<string, string>) {
         }
 
         if (req.method === 'GET') {
-          send(200, { configured: Boolean(env.OPENAI_API_KEY), model: env.OPENAI_MODEL || 'gpt-4o-mini' })
+          send(200, getAiStatus(env))
           return
         }
         if (req.method !== 'POST') {
@@ -35,6 +35,9 @@ function localAiApi(env: Record<string, string>) {
               OPENAI_API_KEY: env.OPENAI_API_KEY,
               OPENAI_MODEL: env.OPENAI_MODEL,
               OPENAI_BASE_URL: env.OPENAI_BASE_URL,
+              GEMINI_API_KEY: env.GEMINI_API_KEY,
+              GEMINI_MODEL: env.GEMINI_MODEL,
+              AI_PROVIDER: env.AI_PROVIDER,
             })
             send(result.status, result.body)
           } catch {
