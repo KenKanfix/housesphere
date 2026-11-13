@@ -11,14 +11,17 @@ import {
   Package,
   Plus,
   ReceiptText,
+  Repeat,
   ShieldCheck,
   Sparkles,
   Wallet,
   Wrench,
 } from 'lucide-react'
 import {
+  billFrequencyLabel,
   categoryLabel,
   db,
+  EXPENSE_CATEGORIES,
   formatDate,
   formatDue,
   formatMoney,
@@ -54,6 +57,7 @@ export function Dashboard() {
   const documents = useLiveQuery(() => db.documents.toArray(), []) ?? []
   const expenses = useLiveQuery(() => db.expenses.toArray(), []) ?? []
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
+  const bills = useLiveQuery(() => db.bills.toArray(), []) ?? []
 
   useEffect(() => {
     void maybeSendReminder()
@@ -76,7 +80,7 @@ export function Dashboard() {
     date: string
     to: string
     tone: 'danger' | 'amber' | 'neutral'
-    kind: 'task' | 'warranty' | 'document'
+    kind: 'task' | 'warranty' | 'document' | 'bill'
   }
 
   const attention: Attention[] = [
@@ -90,6 +94,17 @@ export function Dashboard() {
         to: '/maintenance',
         tone: (daysUntil(task.nextDue) < 0 ? 'danger' : daysUntil(task.nextDue) <= 7 ? 'amber' : 'neutral') as Attention['tone'],
         kind: 'task' as const,
+      })),
+    ...bills
+      .filter((bill) => daysUntil(bill.nextDue) <= 30)
+      .map((bill) => ({
+        key: `bill-${bill.id}`,
+        title: `${bill.name} bill`,
+        subtitle: `${categoryLabel(EXPENSE_CATEGORIES, bill.category)} · ${billFrequencyLabel(bill.frequencyDays)}`,
+        date: bill.nextDue,
+        to: '/bills',
+        tone: (daysUntil(bill.nextDue) < 0 ? 'danger' : daysUntil(bill.nextDue) <= 7 ? 'amber' : 'neutral') as Attention['tone'],
+        kind: 'bill' as const,
       })),
     ...warranties
       .filter((warranty) => daysUntil(warranty.expiryDate) <= 90)
@@ -123,6 +138,7 @@ export function Dashboard() {
   const attentionIcon = (kind: Attention['kind']) => {
     if (kind === 'warranty') return <ShieldCheck className="size-4" />
     if (kind === 'document') return <FileText className="size-4" />
+    if (kind === 'bill') return <Repeat className="size-4" />
     return <Wrench className="size-4" />
   }
 
@@ -234,7 +250,7 @@ export function Dashboard() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-ink">You are all caught up</p>
-                <p className="text-xs text-muted">No maintenance, warranties or renewals due in the next 30 days.</p>
+                <p className="text-xs text-muted">No maintenance, bills, warranties or renewals due in the next 30 days.</p>
               </div>
             </Card>
           )}

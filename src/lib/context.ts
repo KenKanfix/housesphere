@@ -1,4 +1,5 @@
 import {
+  billFrequencyLabel,
   categoryLabel,
   db,
   EXPENSE_CATEGORIES,
@@ -9,7 +10,7 @@ import {
 } from './db'
 
 export async function buildHouseholdContext(): Promise<string> {
-  const [settings, rooms, items, warranties, tasks, projects, documents, expenses, providers] = await Promise.all([
+  const [settings, rooms, items, warranties, tasks, projects, documents, expenses, bills, providers] = await Promise.all([
     db.settings.get('app'),
     db.rooms.toArray(),
     db.items.toArray(),
@@ -18,6 +19,7 @@ export async function buildHouseholdContext(): Promise<string> {
     db.projects.toArray(),
     db.documents.toArray(),
     db.expenses.toArray(),
+    db.bills.toArray(),
     db.providers.toArray(),
   ])
 
@@ -116,6 +118,18 @@ export async function buildHouseholdContext(): Promise<string> {
         .map(([category, total]) => `${categoryLabel(EXPENSE_CATEGORIES, category)} ${money(total)}`)
         .join(', ')}.`,
     )
+  }
+
+  if (bills.length > 0) {
+    const upcomingBills = bills.slice().sort((a, b) => a.nextDue.localeCompare(b.nextDue))
+    lines.push(`\nRECURRING BILLS (${bills.length}):`)
+    for (const bill of upcomingBills) {
+      lines.push(
+        `- ${bill.name} | ${categoryLabel(EXPENSE_CATEGORIES, bill.category)} | ${billFrequencyLabel(bill.frequencyDays)} | next due ${
+          bill.nextDue
+        }${bill.amount !== undefined ? ` | ${money(bill.amount)}` : ''}${bill.provider ? ` | ${bill.provider}` : ''}`,
+      )
+    }
   }
 
   if (providers.length > 0) {

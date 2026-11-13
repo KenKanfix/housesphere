@@ -5,6 +5,7 @@ import {
   FileText,
   Hammer,
   Package,
+  Repeat,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -12,7 +13,7 @@ import {
   Wallet,
   Wrench,
 } from 'lucide-react'
-import { currentMonthKey, db, formatMoney } from '../lib/db'
+import { currentMonthKey, db, daysUntil, formatMoney } from '../lib/db'
 import { useInstallPrompt, useSettings } from '../lib/hooks'
 import { Badge, Button, Card, PageHeader } from '../components/ui'
 
@@ -26,6 +27,8 @@ export function More() {
   const projects = useLiveQuery(() => db.projects.count(), []) ?? 0
   const documents = useLiveQuery(() => db.documents.count(), []) ?? 0
   const providers = useLiveQuery(() => db.providers.count(), []) ?? 0
+  const bills = useLiveQuery(() => db.bills.toArray(), []) ?? []
+  const billsDueSoon = bills.filter((bill) => daysUntil(bill.nextDue) <= 14).length
   const monthSpend = useLiveQuery(
     async () =>
       (await db.expenses.toArray())
@@ -76,6 +79,13 @@ export function More() {
       description: 'Bills, maintenance and project costs',
       icon: Wallet,
       meta: formatMoney(monthSpend, settings.currency, true) + ' this month',
+    },
+    {
+      to: '/bills',
+      label: 'Recurring bills',
+      description: 'Rates, utilities and insurance',
+      icon: Repeat,
+      meta: billsDueSoon > 0 ? `${billsDueSoon} due soon` : `${bills.length} bills`,
     },
     {
       to: '/providers',

@@ -40,11 +40,11 @@ export async function askAi(messages: ChatMessage[], context: string): Promise<s
   return body.text
 }
 
-export async function scanImage(kind: ScanKind, image: string): Promise<Record<string, unknown>> {
+export async function scanImage(kind: ScanKind, images: string[]): Promise<Record<string, unknown>> {
   const response = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode: 'scan', kind, image }),
+    body: JSON.stringify({ mode: 'scan', kind, images }),
   })
   const body = await parseResponse(response)
   const data = body.data

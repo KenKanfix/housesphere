@@ -17,7 +17,7 @@ export interface AiRequestBody {
   messages?: ChatMessage[]
   context?: string
   kind?: 'label' | 'receipt' | 'manual'
-  image?: string
+  images?: string[]
 }
 
 export interface AiResult {
@@ -45,7 +45,7 @@ interface ModelRequest {
   system?: string
   messages?: ModelMessage[]
   prompt?: string
-  image?: string
+  images?: string[]
   json?: boolean
 }
 
@@ -83,7 +83,7 @@ Return ONLY a JSON object with this exact shape:
   "notes": "any other useful detail such as capacity, colour, voltage or manufacture date"
 }
 Use empty strings when a value is not visible. Do not invent serial numbers.`,
-  receipt: `You are reading a photo of a purchase receipt, invoice or bill.
+  receipt: `You are reading one or two photos of a purchase receipt, invoice or bill. You may be given the front and the back of the same document; combine the details from both images into a single result.
 Return ONLY a JSON object with this exact shape:
 {
   "vendor": "store or business name",
@@ -181,8 +181,8 @@ async function callOpenAI(
 
   if (request.prompt) {
     const content: Record<string, unknown>[] = [{ type: 'text', text: request.prompt }]
-    if (request.image) {
-      content.push({ type: 'image_url', image_url: { url: request.image, detail: 'high' } })
+    for (const image of request.images ?? []) {
+      content.push({ type: 'image_url', image_url: { url: image, detail: 'high' } })
     }
     messages.push({ role: 'user', content })
   } else {
@@ -232,8 +232,8 @@ async function callGemini(
 
   if (request.prompt) {
     const parts: GeminiPart[] = [{ text: request.prompt }]
-    if (request.image) {
-      const image = parseDataUrl(request.image)
+    for (const dataUrl of request.images ?? []) {
+      const image = parseDataUrl(dataUrl)
       if (image) {
         parts.push({ inlineData: image })
       }
@@ -332,7 +332,8 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
 
   try {
     if (body.mode === 'scan') {
-      if (!body.image || !body.image.startsWith('data:image/')) {
+      const images = (body.images ?? []).filter((entry) => typeof entry === 'string' && entry.startsWith('data:image/'))
+      if (images.length === 0) {
         return { status: 400, body: { error: 'A photo is required for scanning.' } }
       }
       const kind = body.kind ?? 'label'
@@ -348,7 +349,7 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
               temperature: 0.1,
               maxTokens: 2048,
               prompt,
-              image: body.image,
+              images,
               json: true,
             })
           : await callOpenAI(env, {
@@ -356,7 +357,7 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
               temperature: 0.1,
               maxTokens: 700,
               prompt,
-              image: body.image,
+              images,
               json: true,
             })
 

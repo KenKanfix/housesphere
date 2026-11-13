@@ -6,6 +6,7 @@ import {
   Home,
   LayoutGrid,
   Package,
+  Repeat,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -36,6 +37,7 @@ const SECTIONS = [
     label: 'Money & people',
     items: [
       { to: '/expenses', label: 'Household expenses', icon: Wallet },
+      { to: '/bills', label: 'Recurring bills', icon: Repeat },
       { to: '/providers', label: 'Service providers', icon: Users },
     ],
   },

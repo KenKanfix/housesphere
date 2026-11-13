@@ -108,6 +108,20 @@ export interface Expense {
   updatedAt: number
 }
 
+export interface RecurringBill {
+  id: string
+  name: string
+  category: ExpenseCategory
+  amount?: number
+  frequencyDays: number
+  nextDue: string
+  lastPaid?: string
+  provider?: string
+  notes?: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface Provider {
   id: string
   name: string
@@ -155,6 +169,7 @@ class HouseSphereDB extends Dexie {
   projects!: EntityTable<Project, 'id'>
   documents!: EntityTable<HouseholdDocument, 'id'>
   expenses!: EntityTable<Expense, 'id'>
+  bills!: EntityTable<RecurringBill, 'id'>
   providers!: EntityTable<Provider, 'id'>
   serviceRecords!: EntityTable<ServiceRecord, 'id'>
   aiMessages!: EntityTable<AiMessage, 'id'>
@@ -174,6 +189,9 @@ class HouseSphereDB extends Dexie {
       serviceRecords: 'id, providerId, date',
       aiMessages: 'id, createdAt',
       settings: 'id',
+    })
+    this.version(2).stores({
+      bills: 'id, nextDue, category',
     })
   }
 }
@@ -258,6 +276,15 @@ export const INTERVAL_OPTIONS = [
   { label: 'Every 6 months', days: 180 },
   { label: 'Yearly', days: 365 },
   { label: 'Every 2 years', days: 730 },
+]
+
+export const BILL_FREQUENCIES = [
+  { label: 'Weekly', days: 7 },
+  { label: 'Fortnightly', days: 14 },
+  { label: 'Monthly', days: 30 },
+  { label: 'Quarterly', days: 91 },
+  { label: 'Half-yearly', days: 182 },
+  { label: 'Yearly', days: 365 },
 ]
 
 export const CURRENCIES = [
@@ -356,6 +383,17 @@ export function intervalLabel(days: number): string {
   if (days === 1) return 'Daily'
   if (days === 7) return 'Weekly'
   return `Every ${days} days`
+}
+
+export function billFrequencyLabel(days: number): string {
+  const match = BILL_FREQUENCIES.find((option) => option.days === days)
+  if (match) return match.label
+  return intervalLabel(days)
+}
+
+export function monthlyBillCost(bill: RecurringBill): number {
+  if (bill.amount === undefined) return 0
+  return (bill.amount * 30) / bill.frequencyDays
 }
 
 export async function ensureDefaults(): Promise<void> {

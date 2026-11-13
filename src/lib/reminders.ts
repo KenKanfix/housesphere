@@ -5,15 +5,16 @@ const REMINDER_KEY = 'housesphere:last-reminder'
 export interface Reminder {
   title: string
   date: string
-  kind: 'maintenance' | 'warranty' | 'document'
+  kind: 'maintenance' | 'warranty' | 'document' | 'bill'
   days: number
 }
 
 export async function getDueReminders(): Promise<Reminder[]> {
-  const [tasks, warranties, documents] = await Promise.all([
+  const [tasks, warranties, documents, bills] = await Promise.all([
     db.maintenance.toArray(),
     db.warranties.toArray(),
     db.documents.toArray(),
+    db.bills.toArray(),
   ])
 
   const reminders: Reminder[] = []
@@ -21,6 +22,10 @@ export async function getDueReminders(): Promise<Reminder[]> {
   for (const task of tasks) {
     const days = daysUntil(task.nextDue)
     if (days <= 7) reminders.push({ title: task.title, date: task.nextDue, kind: 'maintenance', days })
+  }
+  for (const bill of bills) {
+    const days = daysUntil(bill.nextDue)
+    if (days <= 14) reminders.push({ title: `${bill.name} bill`, date: bill.nextDue, kind: 'bill', days })
   }
   for (const warranty of warranties) {
     const days = daysUntil(warranty.expiryDate)

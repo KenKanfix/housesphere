@@ -10,6 +10,7 @@ const Maintenance = lazy(() => import('./pages/Maintenance').then((module) => ({
 const Projects = lazy(() => import('./pages/Projects').then((module) => ({ default: module.Projects })))
 const Documents = lazy(() => import('./pages/Documents').then((module) => ({ default: module.Documents })))
 const Expenses = lazy(() => import('./pages/Expenses').then((module) => ({ default: module.Expenses })))
+const Bills = lazy(() => import('./pages/Bills').then((module) => ({ default: module.Bills })))
 const Providers = lazy(() => import('./pages/Providers').then((module) => ({ default: module.Providers })))
 const Assistant = lazy(() => import('./pages/Assistant').then((module) => ({ default: module.Assistant })))
 const SettingsPage = lazy(() => import('./pages/Settings').then((module) => ({ default: module.SettingsPage })))
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="projects" element={<Projects />} />
             <Route path="documents" element={<Documents />} />
             <Route path="expenses" element={<Expenses />} />
+            <Route path="bills" element={<Bills />} />
             <Route path="providers" element={<Providers />} />
             <Route path="assistant" element={<Assistant />} />
             <Route path="settings" element={<SettingsPage />} />

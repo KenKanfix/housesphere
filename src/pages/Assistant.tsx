@@ -53,7 +53,8 @@ export function Assistant() {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const [kind, setKind] = useState<ScanKind>('label')
-  const [image, setImage] = useState<string | undefined>()
+  const [front, setFront] = useState<string | undefined>()
+  const [back, setBack] = useState<string | undefined>()
   const [scanning, setScanning] = useState(false)
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
   const [saving, setSaving] = useState(false)
@@ -99,12 +100,20 @@ export function Assistant() {
     }
   }
 
+  const photos = kind === 'receipt' ? [front, back].filter((photo): photo is string => Boolean(photo)) : front ? [front] : []
+
+  const resetScan = () => {
+    setResult(null)
+    setFront(undefined)
+    setBack(undefined)
+  }
+
   const analyse = async () => {
-    if (!image || scanning) return
+    if (photos.length === 0 || scanning) return
     setScanning(true)
     setResult(null)
     try {
-      const data = await scanImage(kind, image)
+      const data = await scanImage(kind, photos)
       setResult(data)
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not read that photo.', 'error')
@@ -114,7 +123,7 @@ export function Assistant() {
   }
 
   const saveLabel = async () => {
-    if (!result || !image) return
+    if (!result || !front) return
     const room = rooms.find((entry) => entry.name === 'Other') ?? rooms[0]
     if (!room) {
       toast('Add a room in Inventory first.', 'error')
@@ -136,13 +145,12 @@ export function Assistant() {
         model: asString(result, 'model') || undefined,
         serial: asString(result, 'serial') || undefined,
         notes: asString(result, 'notes') || undefined,
-        photo: image,
+        photo: front,
         createdAt: timestamp,
         updatedAt: timestamp,
       })
       toast('Added to your inventory')
-      setResult(null)
-      setImage(undefined)
+      resetScan()
     } catch {
       toast('Could not save this item', 'error')
     } finally {
@@ -177,8 +185,7 @@ export function Assistant() {
         updatedAt: timestamp,
       })
       toast('Expense saved')
-      setResult(null)
-      setImage(undefined)
+      resetScan()
     } catch {
       toast('Could not save this expense', 'error')
     } finally {
@@ -187,7 +194,7 @@ export function Assistant() {
   }
 
   const saveManual = async () => {
-    if (!result || !image) return
+    if (!result || !front) return
     const title = asString(result, 'title') || 'Appliance manual'
     const type: DocumentType = 'manual'
     setSaving(true)
@@ -200,14 +207,13 @@ export function Assistant() {
         issuer: asString(result, 'brand') || undefined,
         reference: asString(result, 'model') || undefined,
         notes: asString(result, 'notes') || undefined,
-        fileData: image,
+        fileData: front,
         fileName: `${title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.jpg`,
         createdAt: timestamp,
         updatedAt: timestamp,
       })
       toast('Manual saved to documents')
-      setResult(null)
-      setImage(undefined)
+      resetScan()
     } catch {
       toast('Could not save this manual', 'error')
     } finally {
@@ -398,7 +404,7 @@ export function Assistant() {
                 value={kind}
                 onChange={(value) => {
                   setKind(value)
-                  setResult(null)
+                  resetScan()
                 }}
                 tabs={[
                   { value: 'label', label: 'Appliance label' },
@@ -408,18 +414,37 @@ export function Assistant() {
               />
             </div>
 
-            <div className="mt-4">
-              <PhotoInput value={image} onChange={(value) => { setImage(value); setResult(null) }} label="Photo" maxSize={1400} />
+            <div className="mt-4 space-y-4">
+              <PhotoInput
+                value={front}
+                onChange={(value) => {
+                  setFront(value)
+                  setResult(null)
+                }}
+                label={kind === 'receipt' ? 'Front of bill' : 'Photo'}
+                maxSize={1400}
+              />
+              {kind === 'receipt' ? (
+                <PhotoInput
+                  value={back}
+                  onChange={(value) => {
+                    setBack(value)
+                    setResult(null)
+                  }}
+                  label="Back of bill (optional)"
+                  maxSize={1400}
+                />
+              ) : null}
             </div>
 
             <Button
               className="mt-4 w-full"
               onClick={() => void analyse()}
               loading={scanning}
-              disabled={!image || !configured}
+              disabled={photos.length === 0 || !configured}
               icon={<ScanLine className="size-4" />}
             >
-              Analyse photo
+              Analyse {photos.length > 1 ? 'photos' : 'photo'}
             </Button>
             {!configured ? <p className="mt-2 text-xs text-muted">Add an AI API key to enable scanning.</p> : null}
           </Card>
@@ -469,7 +494,7 @@ export function Assistant() {
                     </Button>
                   </>
                 )}
-                <Button variant="ghost" className="mt-2 w-full" onClick={() => { setResult(null); setImage(undefined) }}>
+                <Button variant="ghost" className="mt-2 w-full" onClick={resetScan}>
                   Scan another
                 </Button>
               </div>
@@ -481,7 +506,7 @@ export function Assistant() {
                   {kind === 'label'
                     ? 'Photograph the rating plate or sticker on an appliance to capture the brand, model and serial number.'
                     : kind === 'receipt'
-                      ? 'Photograph a receipt and HouseSphere can turn it into an expense entry.'
+                      ? 'Photograph the front of a receipt, invoice or bill. Add the back too if it holds extra details, and HouseSphere will turn it into an expense entry.'
                       : 'Photograph the cover of a manual to save it with your home documents.'}
                 </p>
               </div>

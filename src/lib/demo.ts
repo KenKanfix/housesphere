@@ -416,6 +416,68 @@ export async function loadDemoData(): Promise<boolean> {
     updatedAt: timestamp,
   }))
 
+  const billSeed: {
+    name: string
+    category: ExpenseCategory
+    amount?: number
+    frequencyDays: number
+    nextDue: string
+    lastPaid?: string
+    provider?: string
+    notes?: string
+  }[] = [
+    {
+      name: 'Council rates',
+      category: 'other',
+      amount: 720,
+      frequencyDays: 91,
+      nextDue: addDaysISO(20),
+      lastPaid: addDaysISO(-71),
+      provider: 'City Council',
+      notes: 'Quarterly instalments. Rates notice kept in documents.',
+    },
+    {
+      name: 'Electricity',
+      category: 'electricity',
+      amount: 186.4,
+      frequencyDays: 30,
+      nextDue: addDaysISO(9),
+      lastPaid: addDaysISO(-21),
+      provider: 'AGL',
+      notes: 'Monthly billing, direct debit.',
+    },
+    {
+      name: 'Gas',
+      category: 'gas',
+      amount: 74.5,
+      frequencyDays: 30,
+      nextDue: addDaysISO(5),
+      lastPaid: addDaysISO(-25),
+      provider: 'Origin Energy',
+    },
+    {
+      name: 'Water',
+      category: 'water',
+      amount: 98.2,
+      frequencyDays: 91,
+      nextDue: addDaysISO(35),
+      lastPaid: addDaysISO(-56),
+      provider: 'Sydney Water',
+    },
+    {
+      name: 'Home & contents insurance',
+      category: 'insurance',
+      amount: 1480,
+      frequencyDays: 365,
+      nextDue: addDaysISO(65),
+      lastPaid: addDaysISO(-300),
+      provider: 'Suncorp',
+      notes: 'Building $620,000 and contents $120,000.',
+    },
+  ]
+
+  const bills = billSeed.map((bill) => ({ ...bill, id: uid(), createdAt: timestamp, updatedAt: timestamp }))
+
   const serviceRecords = [
     {
       providerId: coolAir,
@@ -445,7 +507,7 @@ export async function loadDemoData(): Promise<boolean> {
 
   await db.transaction(
     'rw',
-    [db.providers, db.items, db.warranties, db.maintenance, db.projects, db.documents, db.expenses, db.serviceRecords],
+    [db.providers, db.items, db.warranties, db.maintenance, db.projects, db.documents, db.expenses, db.bills, db.serviceRecords],
     async () => {
       await db.providers.bulkAdd(providers)
       await db.items.bulkAdd(items)
@@ -454,6 +516,7 @@ export async function loadDemoData(): Promise<boolean> {
       await db.projects.bulkAdd(projects)
       await db.documents.bulkAdd(documents)
       await db.expenses.bulkAdd(expenses)
+      await db.bills.bulkAdd(bills)
       await db.serviceRecords.bulkAdd(serviceRecords)
     },
   )

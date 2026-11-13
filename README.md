@@ -11,8 +11,9 @@
 - **Projects** — budgets, status tracking and linked expenses.
 - **Documents** — insurance policies, manuals, certificates and receipts with preview.
 - **Expenses** — categorised spending, per-project tracking and monthly totals.
+- **Recurring bills** — council rates, utilities and insurance with due reminders and one-tap payment logging.
 - **Providers** — trusted trades, contact details and service history.
-- **Assistant** — chat about your home, scan labels/receipts/manuals, and save extracted results.
+- **Assistant** — chat about your home, scan labels/receipts/manuals (front and back for bills), and save extracted results.
 
 All household data is stored locally in the browser with IndexedDB. There is no account, cloud database or sync. Export/import backups from **Settings**.
 
