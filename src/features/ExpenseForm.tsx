@@ -91,15 +91,13 @@ export function ExpenseForm({
     }
 
     setError('')
+    setBillScan({ data, photos })
     if (scanKind === 'bill') {
       const frequencyDays = frequencyToDays(str('frequency'))
       const dueValue = str('dueDate')
-      setBillScan({ data, photos })
       setBillFrequency(frequencyDays)
       setBillNextDue(/^\d{4}-\d{2}-\d{2}$/.test(dueValue) ? dueValue : addDaysISO(frequencyDays))
       setAddAsBill(true)
-    } else {
-      setBillScan(null)
     }
     toast(filled > 0 ? 'Details filled from photo' : 'Could not read details — add them manually', filled > 0 ? 'success' : 'error')
   }
@@ -115,7 +113,7 @@ export function ExpenseForm({
       setError('Choose a date.')
       return
     }
-    const createBill = addAsBill && billScan !== null
+    const createBill = addAsBill
     if (createBill && !billNextDue) {
       setError('Add the next due date for the recurring bill.')
       return
@@ -136,8 +134,9 @@ export function ExpenseForm({
           createdAt: initial?.createdAt ?? timestamp,
           updatedAt: timestamp,
         })
-        if (createBill && billScan) {
-          const account = typeof billScan.data.accountNumber === 'string' ? billScan.data.accountNumber : ''
+        if (createBill) {
+          const scan = billScan
+          const account = scan && typeof scan.data.accountNumber === 'string' ? scan.data.accountNumber : ''
           const billId = uid()
           await db.bills.put({
             id: billId,
@@ -152,21 +151,21 @@ export function ExpenseForm({
             updatedAt: timestamp,
           })
           const photos: BillPhoto[] = []
-          if (billScan.photos.front) {
+          if (scan?.photos.front) {
             photos.push({
               id: uid(),
               billId,
               kind: 'front',
-              data: billScan.photos.frontArchive ?? billScan.photos.front,
+              data: scan.photos.frontArchive ?? scan.photos.front,
               createdAt: timestamp,
             })
           }
-          if (billScan.photos.back) {
+          if (scan?.photos.back) {
             photos.push({
               id: uid(),
               billId,
               kind: 'back',
-              data: billScan.photos.backArchive ?? billScan.photos.back,
+              data: scan.photos.backArchive ?? scan.photos.back,
               createdAt: timestamp,
             })
           }
@@ -200,7 +199,7 @@ export function ExpenseForm({
           ]}
         />
 
-        {billScan ? (
+        {!initial ? (
           <div className="rounded-xl border border-line bg-cream/60 p-4">
             <label className="flex items-start gap-3">
               <input
@@ -212,7 +211,8 @@ export function ExpenseForm({
               <span>
                 <span className="block text-sm font-medium text-ink">Also save as a recurring bill</span>
                 <span className="mt-0.5 block text-xs text-muted">
-                  Adds it to Recurring bills so you get reminded before it is due. The bill photo is kept until you mark it paid.
+                  Tick this any time — even after scanning — to add it to Recurring bills and get reminded before it is due. Any
+                  scanned photo is kept until you mark it paid.
                 </span>
               </span>
             </label>
