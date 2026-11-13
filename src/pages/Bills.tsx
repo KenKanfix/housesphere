@@ -173,25 +173,34 @@ export function Bills() {
                   {bill.lastPaid ? ` · last paid ${bill.lastPaid}` : ''}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <span className="mr-1 text-sm font-semibold text-ink">
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
+                <span className="text-sm font-semibold text-ink">
                   {bill.amount !== undefined ? formatMoney(bill.amount, settings.currency) : '—'}
                 </span>
-                <Button size="sm" variant="soft" onClick={() => setPaying(bill)} icon={<CheckCircle2 className="size-4" />}>
-                  Paid
-                </Button>
-                <IconButton
-                  label="Edit bill"
-                  onClick={() => {
-                    setEditing(bill)
-                    setShowForm(true)
-                  }}
-                >
-                  <Pencil className="size-4" />
-                </IconButton>
-                <IconButton label="Delete bill" onClick={() => setDeleting(bill)} className="hover:text-danger">
-                  <Trash2 className="size-4" />
-                </IconButton>
+                <div className="flex items-center gap-0.5">
+                  <Button
+                    size="sm"
+                    variant="soft"
+                    aria-label="Mark as paid"
+                    className="px-2.5 sm:px-3.5"
+                    onClick={() => setPaying(bill)}
+                    icon={<CheckCircle2 className="size-4" />}
+                  >
+                    <span className="hidden sm:inline">Paid</span>
+                  </Button>
+                  <IconButton
+                    label="Edit bill"
+                    onClick={() => {
+                      setEditing(bill)
+                      setShowForm(true)
+                    }}
+                  >
+                    <Pencil className="size-4" />
+                  </IconButton>
+                  <IconButton label="Delete bill" onClick={() => setDeleting(bill)} className="hover:text-danger">
+                    <Trash2 className="size-4" />
+                  </IconButton>
+                </div>
               </div>
             </div>
           ))}

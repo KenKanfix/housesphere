@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ArrowRight, FileText, KeyRound, Loader2, Package, ReceiptText, RefreshCw, ScanLine, Send, Sparkles, Trash2 } from 'lucide-react'
 import {
   addDaysISO,
+  BILL_FREQUENCIES,
   db,
   EXPENSE_CATEGORIES,
   frequencyToDays,
@@ -17,7 +18,7 @@ import {
 import { buildHouseholdContext } from '../lib/context'
 import { askAi, getAiStatus, scanImage, type AiStatus, type ScanKind } from '../lib/ai'
 import { useToast } from '../components/toastContext'
-import { Badge, Button, Card, IconButton, PageHeader, Tabs } from '../components/ui'
+import { Badge, Button, Card, Field, IconButton, PageHeader, Select, Tabs } from '../components/ui'
 import { PhotoInput } from '../components/PhotoInput'
 
 const SUGGESTIONS = [
@@ -59,6 +60,7 @@ export function Assistant() {
   const [back, setBack] = useState<string | undefined>()
   const [scanning, setScanning] = useState(false)
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
+  const [billFrequency, setBillFrequency] = useState(30)
   const [saving, setSaving] = useState(false)
 
   const refreshStatus = () => {
@@ -113,6 +115,7 @@ export function Assistant() {
     setResult(null)
     setFront(undefined)
     setBack(undefined)
+    setBillFrequency(30)
   }
 
   const analyse = async () => {
@@ -122,6 +125,7 @@ export function Assistant() {
     try {
       const data = await scanImage(kind, photos)
       setResult(data)
+      if (kind === 'bill') setBillFrequency(frequencyToDays(asString(data, 'frequency')))
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not read that photo.', 'error')
     } finally {
@@ -209,7 +213,7 @@ export function Assistant() {
     const category = EXPENSE_CATEGORIES.some((entry) => entry.value === categoryValue)
       ? (categoryValue as ExpenseCategory)
       : 'other'
-    const frequencyDays = frequencyToDays(asString(result, 'frequency'))
+    const frequencyDays = billFrequency
     const dueValue = asString(result, 'dueDate')
     const nextDue = /^\d{4}-\d{2}-\d{2}$/.test(dueValue) ? dueValue : addDaysISO(frequencyDays)
     const account = asString(result, 'accountNumber')
@@ -528,7 +532,21 @@ export function Assistant() {
                     <Row label="Amount" value={result.amount !== undefined ? String(result.amount) : ''} />
                     <Row label="Category" value={asString(result, 'category')} />
                     <Row label="Description" value={asString(result, 'description')} />
-                    {kind === 'bill' ? <Row label="Repeats" value={asString(result, 'frequency')} /> : null}
+                    {kind === 'bill' ? (
+                      <Field label="Repeats" htmlFor="bill-frequency" className="pt-3">
+                        <Select
+                          id="bill-frequency"
+                          value={String(billFrequency)}
+                          onChange={(event) => setBillFrequency(Number(event.target.value))}
+                        >
+                          {BILL_FREQUENCIES.map((option) => (
+                            <option key={option.days} value={option.days}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    ) : null}
                     {kind === 'bill' ? <Row label="Account" value={asString(result, 'accountNumber')} /> : null}
                     {items.length > 0 ? (
                       <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted">

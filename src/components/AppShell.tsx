@@ -57,15 +57,11 @@ const MOBILE_ITEMS = [
 
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <span
-      className={clsx(
-        'relative inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-ink text-white shadow-sm',
-        className,
-      )}
-    >
-      <Home className="size-5" />
-      <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-amber-300" />
-    </span>
+    <img
+      src="/icons/icon-192.png"
+      alt="HouseSphere"
+      className={clsx('size-10 shrink-0 rounded-xl object-cover shadow-sm', className)}
+    />
   )
 }
 

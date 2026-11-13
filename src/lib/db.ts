@@ -387,11 +387,13 @@ export function intervalLabel(days: number): string {
 
 export function frequencyToDays(value?: string): number {
   const key = (value ?? '').trim().toLowerCase()
-  if (key.includes('week') && key.includes('fort')) return 14
-  if (key.startsWith('week')) return 7
-  if (key.startsWith('quarter')) return 91
-  if (key.includes('half') || key.includes('semi') || key.includes('biannual')) return 182
-  if (key.startsWith('year') || key.startsWith('annual')) return 365
+  if (!key) return 30
+  if (key.includes('fortnight') || (key.includes('week') && key.includes('2'))) return 14
+  if (key.includes('week')) return 7
+  if (key.includes('quarter') || key.includes('3 month') || key.includes('three month')) return 91
+  if (key.includes('half') || key.includes('semi') || key.includes('biannual') || key.includes('6 month') || key.includes('six month')) return 182
+  if (key.includes('biennial') || key.includes('2 year') || key.includes('two year')) return 730
+  if (key.includes('year') || key.includes('annual') || key.includes('12 month')) return 365
   return 30
 }
 

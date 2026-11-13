@@ -113,8 +113,9 @@ Return ONLY a JSON object with this exact shape:
   "category": "electricity | gas | water | insurance | other",
   "description": "a short summary such as Quarterly electricity bill",
   "accountNumber": "account or reference number or empty string",
-  "frequency": "weekly | fortnightly | monthly | quarterly | half-yearly | yearly | empty string"
+  "frequency": "weekly | fortnightly | monthly | quarterly | half-yearly | yearly"
 }
+Set "frequency" from the billing period shown on the bill (for example a quarterly rates notice is "quarterly"). Only leave it empty if the bill gives no indication at all.
 Amount must be a number in the bill currency, without symbols. Use 0 if it cannot be read.`,
 }
 
