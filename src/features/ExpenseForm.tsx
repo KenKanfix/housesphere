@@ -10,8 +10,10 @@ import {
   type ExpenseCategory,
 } from '../lib/db'
 import { toNumber, trimmed } from '../lib/form'
+import type { ScanKind } from '../lib/ai'
 import { useToast } from '../components/toastContext'
 import { Button, Field, Input, Modal, Select, Textarea } from '../components/ui'
+import { ScanCapture } from '../components/ScanCapture'
 
 export function ExpenseForm({
   initial,
@@ -33,6 +35,55 @@ export function ExpenseForm({
   const [projectId, setProjectId] = useState(initial?.projectId ?? defaultProjectId ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const applyScan = (data: Record<string, unknown>, scanKind: ScanKind) => {
+    const str = (key: string) => (typeof data[key] === 'string' ? (data[key] as string) : '')
+
+    if (scanKind === 'label') {
+      const name = str('name')
+      const model = str('model')
+      const brand = str('brand')
+      if (name || model) setDescription([name, model].filter(Boolean).join(' '))
+      if (brand) setVendor(brand)
+      setError('')
+      toast('Details filled from photo')
+      return
+    }
+
+    let filled = 0
+    const amountValue = Number(data.amount)
+    if (Number.isFinite(amountValue) && amountValue > 0) {
+      setAmount(String(amountValue))
+      filled += 1
+    }
+    const dateValue = str('date')
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      setDate(dateValue)
+      filled += 1
+    }
+    const categoryValue = str('category')
+    if (EXPENSE_CATEGORIES.some((entry) => entry.value === categoryValue)) {
+      setCategory(categoryValue as ExpenseCategory)
+      filled += 1
+    }
+    const vendorValue = str('vendor')
+    if (vendorValue) {
+      setVendor(vendorValue)
+      filled += 1
+    }
+    const description = str('description')
+    const account = str('accountNumber')
+    if (description) {
+      setDescription(description)
+      filled += 1
+    } else if (account) {
+      setDescription(`Account ${account}`)
+      filled += 1
+    }
+
+    setError('')
+    toast(filled > 0 ? 'Details filled from photo' : 'Could not read details — add them manually', filled > 0 ? 'success' : 'error')
+  }
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -77,6 +128,16 @@ export function ExpenseForm({
       size="lg"
     >
       <form onSubmit={submit} className="space-y-4">
+        <ScanCapture
+          onExtracted={applyScan}
+          description="Snap a receipt, utility bill or appliance label and the fields are filled in."
+          options={[
+            { value: 'receipt', label: 'Receipt' },
+            { value: 'bill', label: 'Utility bill' },
+            { value: 'label', label: 'Appliance label' },
+          ]}
+        />
+
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Amount" htmlFor="expense-amount">
             <Input

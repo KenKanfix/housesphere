@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ArrowRight, FileText, KeyRound, Loader2, Package, ReceiptText, RefreshCw, ScanLine, Send, Sparkles, Trash2 } from 'lucide-react'
 import {
+  addDaysISO,
   db,
   EXPENSE_CATEGORIES,
+  frequencyToDays,
   ITEM_CATEGORIES,
   now,
   todayISO,
@@ -100,7 +102,12 @@ export function Assistant() {
     }
   }
 
-  const photos = kind === 'receipt' ? [front, back].filter((photo): photo is string => Boolean(photo)) : front ? [front] : []
+  const photos =
+    kind === 'receipt' || kind === 'bill'
+      ? [front, back].filter((photo): photo is string => Boolean(photo))
+      : front
+        ? [front]
+        : []
 
   const resetScan = () => {
     setResult(null)
@@ -188,6 +195,43 @@ export function Assistant() {
       resetScan()
     } catch {
       toast('Could not save this expense', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveRecurringBill = async () => {
+    if (!result) return
+    const vendor = asString(result, 'vendor')
+    const description = asString(result, 'description')
+    const amount = Number(result.amount)
+    const categoryValue = asString(result, 'category')
+    const category = EXPENSE_CATEGORIES.some((entry) => entry.value === categoryValue)
+      ? (categoryValue as ExpenseCategory)
+      : 'other'
+    const frequencyDays = frequencyToDays(asString(result, 'frequency'))
+    const dueValue = asString(result, 'dueDate')
+    const nextDue = /^\d{4}-\d{2}-\d{2}$/.test(dueValue) ? dueValue : addDaysISO(frequencyDays)
+    const account = asString(result, 'accountNumber')
+    setSaving(true)
+    try {
+      const timestamp = now()
+      await db.bills.put({
+        id: uid(),
+        name: description || (vendor ? `${vendor} bill` : 'Recurring bill'),
+        category,
+        amount: Number.isFinite(amount) && amount > 0 ? amount : undefined,
+        frequencyDays,
+        nextDue,
+        provider: vendor || undefined,
+        notes: account ? `Account ${account}` : undefined,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      toast('Recurring bill saved')
+      resetScan()
+    } catch {
+      toast('Could not save this bill', 'error')
     } finally {
       setSaving(false)
     }
@@ -394,7 +438,7 @@ export function Assistant() {
                 <ScanLine className="size-4" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-ink">Scan a label, receipt or manual</h2>
+                <h2 className="text-sm font-semibold text-ink">Scan a label, receipt, bill or manual</h2>
                 <p className="text-xs text-muted">Point the camera at the important details.</p>
               </div>
             </div>
@@ -409,6 +453,7 @@ export function Assistant() {
                 tabs={[
                   { value: 'label', label: 'Appliance label' },
                   { value: 'receipt', label: 'Receipt' },
+                  { value: 'bill', label: 'Utility bill' },
                   { value: 'manual', label: 'Manual' },
                 ]}
               />
@@ -421,10 +466,10 @@ export function Assistant() {
                   setFront(value)
                   setResult(null)
                 }}
-                label={kind === 'receipt' ? 'Front of bill' : 'Photo'}
+                label={kind === 'receipt' || kind === 'bill' ? 'Front of bill' : 'Photo'}
                 maxSize={1400}
               />
-              {kind === 'receipt' ? (
+              {kind === 'receipt' || kind === 'bill' ? (
                 <PhotoInput
                   value={back}
                   onChange={(value) => {
@@ -465,25 +510,7 @@ export function Assistant() {
                       Add to inventory
                     </Button>
                   </>
-                ) : kind === 'receipt' ? (
-                  <>
-                    <Row label="Vendor" value={asString(result, 'vendor')} />
-                    <Row label="Date" value={asString(result, 'date')} />
-                    <Row label="Amount" value={result.amount !== undefined ? String(result.amount) : ''} />
-                    <Row label="Category" value={asString(result, 'category')} />
-                    <Row label="Description" value={asString(result, 'description')} />
-                    {items.length > 0 ? (
-                      <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted">
-                        {items.map((item, index) => (
-                          <li key={index}>{item}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    <Button className="mt-4 w-full" onClick={() => void saveReceipt()} loading={saving} icon={<ReceiptText className="size-4" />}>
-                      Save as expense
-                    </Button>
-                  </>
-                ) : (
+                ) : kind === 'manual' ? (
                   <>
                     <Row label="Title" value={asString(result, 'title')} />
                     <Row label="Brand" value={asString(result, 'brand')} />
@@ -491,6 +518,43 @@ export function Assistant() {
                     <Row label="Notes" value={asString(result, 'notes')} />
                     <Button className="mt-4 w-full" onClick={() => void saveManual()} loading={saving} icon={<FileText className="size-4" />}>
                       Save to documents
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Row label="Vendor" value={asString(result, 'vendor')} />
+                    <Row label="Date" value={asString(result, 'date')} />
+                    {kind === 'bill' ? <Row label="Due" value={asString(result, 'dueDate')} /> : null}
+                    <Row label="Amount" value={result.amount !== undefined ? String(result.amount) : ''} />
+                    <Row label="Category" value={asString(result, 'category')} />
+                    <Row label="Description" value={asString(result, 'description')} />
+                    {kind === 'bill' ? <Row label="Repeats" value={asString(result, 'frequency')} /> : null}
+                    {kind === 'bill' ? <Row label="Account" value={asString(result, 'accountNumber')} /> : null}
+                    {items.length > 0 ? (
+                      <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted">
+                        {items.map((item, index) => (
+                          <li key={index}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {kind === 'bill' ? (
+                      <Button
+                        className="mt-4 w-full"
+                        onClick={() => void saveRecurringBill()}
+                        loading={saving}
+                        icon={<RefreshCw className="size-4" />}
+                      >
+                        Save as recurring bill
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant={kind === 'bill' ? 'secondary' : 'primary'}
+                      className="mt-2 w-full"
+                      onClick={() => void saveReceipt()}
+                      loading={saving}
+                      icon={<ReceiptText className="size-4" />}
+                    >
+                      Save as expense
                     </Button>
                   </>
                 )}
@@ -506,8 +570,10 @@ export function Assistant() {
                   {kind === 'label'
                     ? 'Photograph the rating plate or sticker on an appliance to capture the brand, model and serial number.'
                     : kind === 'receipt'
-                      ? 'Photograph the front of a receipt, invoice or bill. Add the back too if it holds extra details, and HouseSphere will turn it into an expense entry.'
-                      : 'Photograph the cover of a manual to save it with your home documents.'}
+                      ? 'Photograph the front of a receipt or invoice. Add the back too if it holds extra details, and HouseSphere will turn it into an expense entry.'
+                      : kind === 'bill'
+                        ? 'Photograph a utility bill, rates notice or insurance notice. Add the back too if needed, then save it as a one-off expense or a recurring bill.'
+                        : 'Photograph the cover of a manual to save it with your home documents.'}
                 </p>
               </div>
             )}

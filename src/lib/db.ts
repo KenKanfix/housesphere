@@ -385,6 +385,16 @@ export function intervalLabel(days: number): string {
   return `Every ${days} days`
 }
 
+export function frequencyToDays(value?: string): number {
+  const key = (value ?? '').trim().toLowerCase()
+  if (key.includes('week') && key.includes('fort')) return 14
+  if (key.startsWith('week')) return 7
+  if (key.startsWith('quarter')) return 91
+  if (key.includes('half') || key.includes('semi') || key.includes('biannual')) return 182
+  if (key.startsWith('year') || key.startsWith('annual')) return 365
+  return 30
+}
+
 export function billFrequencyLabel(days: number): string {
   const match = BILL_FREQUENCIES.find((option) => option.days === days)
   if (match) return match.label

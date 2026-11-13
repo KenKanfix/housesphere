@@ -6,7 +6,7 @@ export interface AiStatus {
   provider?: 'gemini' | 'openai'
 }
 
-export type ScanKind = 'label' | 'receipt' | 'manual'
+export type ScanKind = 'label' | 'receipt' | 'manual' | 'bill'
 
 async function parseResponse(response: Response): Promise<Record<string, unknown>> {
   const body = await response.json().catch(() => ({}))

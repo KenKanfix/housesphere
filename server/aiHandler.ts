@@ -16,7 +16,7 @@ export interface AiRequestBody {
   mode?: 'chat' | 'scan'
   messages?: ChatMessage[]
   context?: string
-  kind?: 'label' | 'receipt' | 'manual'
+  kind?: 'label' | 'receipt' | 'manual' | 'bill'
   images?: string[]
 }
 
@@ -103,6 +103,19 @@ Return ONLY a JSON object with this exact shape:
   "type": "manual",
   "notes": "a one sentence description"
 }`,
+  bill: `You are reading one or two photos of a utility bill, rates notice or insurance notice (for example electricity, gas, water, council rates or insurance). You may be given the front and the back of the same document; combine the details from both images into a single result.
+Return ONLY a JSON object with this exact shape:
+{
+  "vendor": "utility, council or insurer name",
+  "date": "YYYY-MM-DD issue date or empty string",
+  "dueDate": "YYYY-MM-DD payment due date or empty string",
+  "amount": 0,
+  "category": "electricity | gas | water | insurance | other",
+  "description": "a short summary such as Quarterly electricity bill",
+  "accountNumber": "account or reference number or empty string",
+  "frequency": "weekly | fortnightly | monthly | quarterly | half-yearly | yearly | empty string"
+}
+Amount must be a number in the bill currency, without symbols. Use 0 if it cannot be read.`,
 }
 
 function geminiKey(env: AiEnv): string | undefined {
