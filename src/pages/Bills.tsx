@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CalendarClock, CheckCircle2, Pencil, Plus, Repeat, Trash2, Wallet } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Image as ImageIcon, Pencil, Plus, Repeat, Trash2, Wallet } from 'lucide-react'
 import {
   addDaysISO,
   billFrequencyLabel,
@@ -15,6 +15,7 @@ import {
   todayISO,
   uid,
   yearlyBillCost,
+  type BillPhoto,
   type RecurringBill,
 } from '../lib/db'
 import { useSettings } from '../lib/hooks'
@@ -26,6 +27,7 @@ import {
   ConfirmDialog,
   EmptyState,
   IconButton,
+  Modal,
   PageHeader,
   Stat,
 } from '../components/ui'
@@ -38,9 +40,20 @@ export function Bills() {
   const [editing, setEditing] = useState<RecurringBill | null>(null)
   const [deleting, setDeleting] = useState<RecurringBill | null>(null)
   const [paying, setPaying] = useState<RecurringBill | null>(null)
+  const [viewing, setViewing] = useState<RecurringBill | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const bills = useLiveQuery(() => db.bills.toArray(), []) ?? []
+  const data = useLiveQuery(async () => ({
+    bills: await db.bills.toArray(),
+    photos: await db.billPhotos.toArray(),
+  }), [])
+  const bills = data?.bills ?? []
+  const photosByBill = (data?.photos ?? []).reduce<Record<string, BillPhoto[]>>((acc, photo) => {
+    const list = acc[photo.billId] ?? []
+    list.push(photo)
+    acc[photo.billId] = list
+    return acc
+  }, {})
   const sorted = [...bills].sort((a, b) => a.nextDue.localeCompare(b.nextDue))
 
   const dueSoon = bills.filter((bill) => daysUntil(bill.nextDue) <= 14)
@@ -61,7 +74,7 @@ export function Bills() {
     setBusy(true)
     try {
       const timestamp = now()
-      await db.transaction('rw', [db.bills, db.expenses], async () => {
+      await db.transaction('rw', [db.bills, db.expenses, db.billPhotos], async () => {
         if (bill.amount !== undefined && bill.amount > 0) {
           await db.expenses.put({
             id: uid(),
@@ -80,6 +93,7 @@ export function Bills() {
           nextDue: addDaysISO(bill.frequencyDays),
           updatedAt: timestamp,
         })
+        await db.billPhotos.where('billId').equals(bill.id).delete()
       })
       toast(bill.amount ? 'Payment logged and bill advanced' : 'Bill marked as paid')
       setPaying(null)
@@ -94,7 +108,10 @@ export function Bills() {
     if (!deleting) return
     setBusy(true)
     try {
-      await db.bills.delete(deleting.id)
+      await db.transaction('rw', [db.bills, db.billPhotos], async () => {
+        await db.bills.delete(deleting.id)
+        await db.billPhotos.where('billId').equals(deleting.id).delete()
+      })
       toast('Bill deleted')
       setDeleting(null)
     } catch {
@@ -161,6 +178,16 @@ export function Bills() {
                   {new Date(`${bill.nextDue}T00:00:00`).toLocaleDateString(undefined, { month: 'short' })}
                 </span>
               </div>
+              {photosByBill[bill.id]?.length ? (
+                <button
+                  type="button"
+                  onClick={() => setViewing(bill)}
+                  aria-label="View bill photo"
+                  className="size-11 shrink-0 overflow-hidden rounded-lg border border-line bg-cream"
+                >
+                  <img src={photosByBill[bill.id][0].data} alt="" className="size-full object-cover" />
+                </button>
+              ) : null}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate text-sm font-medium text-ink">{bill.name}</p>
@@ -222,8 +249,8 @@ export function Bills() {
         title="Mark this bill as paid?"
         message={
           paying?.amount !== undefined
-            ? `${paying?.name} will be logged as an expense and the next due date will move forward.`
-            : `${paying?.name} will be marked as paid and the next due date will move forward.`
+            ? `${paying?.name} will be logged as an expense, the next due date will move forward and any saved bill photo will be cleared.`
+            : `${paying?.name} will be marked as paid, the next due date will move forward and any saved bill photo will be cleared.`
         }
         confirmLabel="Mark paid"
         busy={busy}
@@ -239,6 +266,32 @@ export function Bills() {
         onConfirm={remove}
         onCancel={() => setDeleting(null)}
       />
+
+      <Modal
+        open={Boolean(viewing)}
+        onClose={() => setViewing(null)}
+        title={viewing?.name ?? 'Bill photo'}
+        description={viewing ? `${billFrequencyLabel(viewing.frequencyDays)} · ${formatDue(viewing.nextDue)}` : undefined}
+        size="lg"
+      >
+        {viewing ? (
+          <div className="space-y-3">
+            {(photosByBill[viewing.id] ?? []).map((photo) => (
+              <figure key={photo.id} className="overflow-hidden rounded-xl border border-line bg-surface">
+                <img
+                  src={photo.data}
+                  alt={photo.kind === 'back' ? 'Back of bill' : 'Front of bill'}
+                  className="w-full"
+                />
+                <figcaption className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted">
+                  <ImageIcon className="size-3.5" />
+                  {photo.kind === 'back' ? 'Back of bill' : 'Front of bill'}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   )
 }

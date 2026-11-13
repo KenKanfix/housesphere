@@ -122,6 +122,14 @@ export interface RecurringBill {
   updatedAt: number
 }
 
+export interface BillPhoto {
+  id: string
+  billId: string
+  kind: 'front' | 'back'
+  data: string
+  createdAt: number
+}
+
 export interface Provider {
   id: string
   name: string
@@ -170,6 +178,7 @@ class HouseSphereDB extends Dexie {
   documents!: EntityTable<HouseholdDocument, 'id'>
   expenses!: EntityTable<Expense, 'id'>
   bills!: EntityTable<RecurringBill, 'id'>
+  billPhotos!: EntityTable<BillPhoto, 'id'>
   providers!: EntityTable<Provider, 'id'>
   serviceRecords!: EntityTable<ServiceRecord, 'id'>
   aiMessages!: EntityTable<AiMessage, 'id'>
@@ -192,6 +201,9 @@ class HouseSphereDB extends Dexie {
     })
     this.version(2).stores({
       bills: 'id, nextDue, category',
+    })
+    this.version(3).stores({
+      billPhotos: 'id, billId',
     })
   }
 }

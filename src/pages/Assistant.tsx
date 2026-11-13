@@ -11,6 +11,7 @@ import {
   now,
   todayISO,
   uid,
+  type BillPhoto,
   type DocumentType,
   type ExpenseCategory,
   type ItemCategory,
@@ -58,6 +59,8 @@ export function Assistant() {
   const [kind, setKind] = useState<ScanKind>('label')
   const [front, setFront] = useState<string | undefined>()
   const [back, setBack] = useState<string | undefined>()
+  const [frontArchive, setFrontArchive] = useState<string | undefined>()
+  const [backArchive, setBackArchive] = useState<string | undefined>()
   const [scanning, setScanning] = useState(false)
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
   const [billFrequency, setBillFrequency] = useState(30)
@@ -115,6 +118,8 @@ export function Assistant() {
     setResult(null)
     setFront(undefined)
     setBack(undefined)
+    setFrontArchive(undefined)
+    setBackArchive(undefined)
     setBillFrequency(30)
   }
 
@@ -220,8 +225,9 @@ export function Assistant() {
     setSaving(true)
     try {
       const timestamp = now()
+      const billId = uid()
       await db.bills.put({
-        id: uid(),
+        id: billId,
         name: description || (vendor ? `${vendor} bill` : 'Recurring bill'),
         category,
         amount: Number.isFinite(amount) && amount > 0 ? amount : undefined,
@@ -232,6 +238,10 @@ export function Assistant() {
         createdAt: timestamp,
         updatedAt: timestamp,
       })
+      const photos: BillPhoto[] = []
+      if (front) photos.push({ id: uid(), billId, kind: 'front', data: frontArchive ?? front, createdAt: timestamp })
+      if (back) photos.push({ id: uid(), billId, kind: 'back', data: backArchive ?? back, createdAt: timestamp })
+      if (photos.length > 0) await db.billPhotos.bulkPut(photos)
       toast('Recurring bill saved')
       resetScan()
     } catch {
@@ -470,8 +480,15 @@ export function Assistant() {
                   setFront(value)
                   setResult(null)
                 }}
+                onArchive={kind === 'bill' ? setFrontArchive : undefined}
+                archiveMaxSize={kind === 'bill' ? 2600 : undefined}
                 label={kind === 'receipt' || kind === 'bill' ? 'Front of bill' : 'Photo'}
                 maxSize={1400}
+                hint={
+                  kind === 'bill'
+                    ? 'Keep the barcode and payment details sharp — you can show this at the post office to pay.'
+                    : undefined
+                }
               />
               {kind === 'receipt' || kind === 'bill' ? (
                 <PhotoInput
@@ -480,6 +497,8 @@ export function Assistant() {
                     setBack(value)
                     setResult(null)
                   }}
+                  onArchive={kind === 'bill' ? setBackArchive : undefined}
+                  archiveMaxSize={kind === 'bill' ? 2600 : undefined}
                   label="Back of bill (optional)"
                   maxSize={1400}
                 />

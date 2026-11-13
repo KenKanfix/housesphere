@@ -8,21 +8,39 @@ export function PhotoInput({
   onChange,
   label = 'Photo',
   maxSize = 1200,
+  quality = 0.78,
+  archiveMaxSize,
+  archiveQuality = 0.92,
+  onArchive,
+  hint,
 }: {
   value?: string
   onChange: (value: string | undefined) => void
   label?: string
   maxSize?: number
+  quality?: number
+  archiveMaxSize?: number
+  archiveQuality?: number
+  onArchive?: (value: string | undefined) => void
+  hint?: string
 }) {
   const cameraRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
 
+  const clear = () => {
+    onChange(undefined)
+    onArchive?.(undefined)
+  }
+
   const handleFile = async (file?: File) => {
     if (!file) return
     setBusy(true)
     try {
-      onChange(await compressImage(file, maxSize, 0.78))
+      onChange(await compressImage(file, maxSize, quality))
+      if (onArchive && archiveMaxSize) {
+        onArchive(await compressImage(file, archiveMaxSize, archiveQuality))
+      }
     } finally {
       setBusy(false)
       if (cameraRef.current) cameraRef.current.value = ''
@@ -38,7 +56,7 @@ export function PhotoInput({
           <img src={value} alt="Selected" className="aspect-[4/3] w-full object-cover" />
           <button
             type="button"
-            onClick={() => onChange(undefined)}
+            onClick={clear}
             aria-label="Remove photo"
             className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-full bg-ink/70 text-white backdrop-blur transition-colors hover:bg-ink"
           >
@@ -76,6 +94,7 @@ export function PhotoInput({
         className="hidden"
         onChange={(event) => handleFile(event.target.files?.[0])}
       />
+      {hint ? <p className="text-xs text-muted/80">{hint}</p> : null}
     </div>
   )
 }
