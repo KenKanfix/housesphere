@@ -401,9 +401,19 @@ export function billFrequencyLabel(days: number): string {
   return intervalLabel(days)
 }
 
-export function monthlyBillCost(bill: RecurringBill): number {
+export function billPaymentsPerYear(frequencyDays: number): number {
+  const table: Record<number, number> = { 7: 52, 14: 26, 30: 12, 91: 4, 182: 2, 365: 1 }
+  if (table[frequencyDays] !== undefined) return table[frequencyDays]
+  return frequencyDays > 0 ? 365 / frequencyDays : 12
+}
+
+export function yearlyBillCost(bill: RecurringBill): number {
   if (bill.amount === undefined) return 0
-  return (bill.amount * 30) / bill.frequencyDays
+  return bill.amount * billPaymentsPerYear(bill.frequencyDays)
+}
+
+export function monthlyBillCost(bill: RecurringBill): number {
+  return yearlyBillCost(bill) / 12
 }
 
 export async function ensureDefaults(): Promise<void> {

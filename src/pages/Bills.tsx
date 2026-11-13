@@ -14,6 +14,7 @@ import {
   now,
   todayISO,
   uid,
+  yearlyBillCost,
   type RecurringBill,
 } from '../lib/db'
 import { useSettings } from '../lib/hooks'
@@ -45,7 +46,7 @@ export function Bills() {
   const dueSoon = bills.filter((bill) => daysUntil(bill.nextDue) <= 14)
   const overdue = bills.filter((bill) => daysUntil(bill.nextDue) < 0)
   const monthlyEstimate = bills.reduce((sum, bill) => sum + monthlyBillCost(bill), 0)
-  const yearlyEstimate = monthlyEstimate * 12
+  const yearlyEstimate = bills.reduce((sum, bill) => sum + yearlyBillCost(bill), 0)
 
   const billTone = (bill: RecurringBill) => {
     const days = daysUntil(bill.nextDue)
