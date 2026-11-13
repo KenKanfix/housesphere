@@ -105,10 +105,10 @@ export function Expenses() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-3 gap-3">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat icon={<Wallet className="size-4" />} label={`Total · ${periodLabel}`} value={formatMoney(total, settings.currency, true)} />
         <Stat icon={<TrendingUp className="size-4" />} label="This year" value={formatMoney(yearTotal, settings.currency, true)} />
-        <Stat icon={<ReceiptText className="size-4" />} label="Entries shown" value={filtered.length} />
+        <Stat className="col-span-2 sm:col-span-1" icon={<ReceiptText className="size-4" />} label="Entries shown" value={filtered.length} />
       </div>
 
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">

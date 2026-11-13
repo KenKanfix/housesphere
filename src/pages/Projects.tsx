@@ -96,10 +96,11 @@ export function Projects() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-3 gap-3">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat icon={<Hammer className="size-4" />} label="Active projects" value={active.length} />
         <Stat icon={<TrendingUp className="size-4" />} label="Active budget" value={formatMoney(activeBudget, settings.currency, true)} />
         <Stat
+          className="col-span-2 sm:col-span-1"
           icon={<ReceiptText className="size-4" />}
           label="Spent so far"
           value={formatMoney(activeSpent, settings.currency, true)}

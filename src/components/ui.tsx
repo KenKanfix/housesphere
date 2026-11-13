@@ -399,6 +399,7 @@ export function Stat({
   hint,
   tone = 'brand',
   onClick,
+  className,
 }: {
   icon: ReactNode
   label: string
@@ -406,6 +407,7 @@ export function Stat({
   hint?: string
   tone?: 'brand' | 'amber' | 'danger' | 'neutral'
   onClick?: () => void
+  className?: string
 }) {
   const tones = {
     brand: 'bg-brand-soft text-brand-dark',
@@ -427,12 +429,15 @@ export function Stat({
       <button
         type="button"
         onClick={onClick}
-        className="rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-brand/30 hover:bg-brand-soft/20"
+        className={clsx(
+          'rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-brand/30 hover:bg-brand-soft/20',
+          className,
+        )}
       >
         {content}
       </button>
     )
   }
 
-  return <div className="rounded-2xl border border-line bg-surface p-4">{content}</div>
+  return <div className={clsx('rounded-2xl border border-line bg-surface p-4', className)}>{content}</div>
 }

@@ -139,7 +139,7 @@ export function Bills() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-3 gap-3">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat
           icon={<CalendarClock className="size-4" />}
           label="Due in 14 days"
@@ -148,7 +148,12 @@ export function Bills() {
           tone={overdue.length > 0 ? 'danger' : 'brand'}
         />
         <Stat icon={<Wallet className="size-4" />} label="Estimated monthly" value={formatMoney(monthlyEstimate, settings.currency, true)} />
-        <Stat icon={<Repeat className="size-4" />} label="Estimated yearly" value={formatMoney(yearlyEstimate, settings.currency, true)} />
+        <Stat
+          className="col-span-2 sm:col-span-1"
+          icon={<Repeat className="size-4" />}
+          label="Estimated yearly"
+          value={formatMoney(yearlyEstimate, settings.currency, true)}
+        />
       </div>
 
       {sorted.length === 0 ? (
