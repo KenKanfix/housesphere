@@ -31,7 +31,7 @@ jobs:
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/android.keystore
 
       - name: Generate Android project
-        run: bubblewrap init --manifest ./twa-manifest.json --directory ./android
+        run: npm run android:init
 
       - name: Build signed APK and AAB
         working-directory: android

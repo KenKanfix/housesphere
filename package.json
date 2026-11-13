@@ -9,7 +9,7 @@
     "typecheck": "tsc -b",
     "lint": "oxlint",
     "preview": "vite preview",
-    "android:init": "bubblewrap init --manifest ./twa-manifest.json --directory ./android",
+    "android:init": "node scripts/prepare-twa.mjs",
     "android:build": "cd android && bubblewrap build --skipPwaValidation"
   },
   "dependencies": {

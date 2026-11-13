@@ -44,9 +44,14 @@
   "isChromeOSOnly": false,
   "isMetaQuest": false,
   "fullScopeUrl": "https://housesphere.vercel.app/",
-  "minSdkVersion": 21,
+  "minSdkVersion": 24,
   "orientation": "portrait",
-  "fingerprints": [],
+  "fingerprints": [
+    {
+      "name": "HouseSphere signing key",
+      "value": "B2:B9:4C:F1:37:51:12:38:93:D6:31:CB:15:22:82:C2:FA:9C:4F:40:02:6A:6D:1E:D1:89:3F:FC:6A:07:9D:43"
+    }
+  ],
   "additionalTrustedOrigins": [],
   "retainedBundles": []
 }

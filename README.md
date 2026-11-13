@@ -106,19 +106,23 @@ Keep `packageId` (`app.housesphere.twa`) unless you need a different application
 npm run android:init
 ```
 
-Bubblewrap validates the live PWA and asks you to confirm values and set a keystore password. It creates `android/android.keystore` (matching the `signingKey` path in the manifest). Keep that file and its passwords safe — it signs every future update.
+This copies `twa-manifest.json` into `android/`, downloads the icons, and generates the Android project with Bubblewrap. Re-run it after changing the manifest.
 
-If you prefer to create the key yourself:
+Then create the signing key:
 
 ```powershell
 keytool -genkeypair -v -keystore android/android.keystore -alias housesphere -keyalg RSA -keysize 2048 -validity 10000
 ```
+
+Keep `android/android.keystore` and its passwords safe — it signs every future update. It is gitignored.
 
 ### 3. Build the signed app
 
 ```powershell
 npm run android:build
 ```
+
+Bubblewrap asks for the keystore and key passwords. You can also set `BUBBLEWRAP_KEYSTORE_PASSWORD` and `BUBBLEWRAP_KEY_PASSWORD` before running the command.
 
 Outputs:
 
@@ -210,4 +214,6 @@ vercel.json          SPA rewrites and headers
 
 - **Address bar visible in the Android app** — asset links are missing, unreachable, use the wrong package ID or the wrong signing fingerprint. Re-deploy and re-test.
 - **Bubblewrap PWA validation fails** — confirm the site is publicly reachable over HTTPS and icons resolve; CI uses `--skipPwaValidation` because assets may not be deployed yet.
+- **Bubblewrap signing fails on Windows with `'C:\Program' is not recognized`** — the JDK path contains spaces. Point `jdkPath` in `~/.bubblewrap/config.json` at a space-free path, for example a junction: `New-Item -ItemType Junction -Path C:\jdk17 -Target "C:\Program Files\Eclipse Adoptium\jdk-17..."`.
+- **`minSdkVersion 21 cannot be smaller than version 24`** — set `minSdkVersion` to at least `24` in `twa-manifest.json` and re-run `npm run android:init`.
 - **AI says not configured** — set `GEMINI_API_KEY` (or `OPENAI_API_KEY`) and restart the dev server or redeploy.
