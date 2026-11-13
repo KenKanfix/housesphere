@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  addDaysISO,
+  BILL_FREQUENCIES,
   db,
   EXPENSE_CATEGORIES,
+  frequencyToDays,
   now,
   todayISO,
   uid,
+  type BillPhoto,
   type Expense,
   type ExpenseCategory,
 } from '../lib/db'
@@ -13,7 +17,7 @@ import { toNumber, trimmed } from '../lib/form'
 import type { ScanKind } from '../lib/ai'
 import { useToast } from '../components/toastContext'
 import { Button, Field, Input, Modal, Select, Textarea } from '../components/ui'
-import { ScanCapture } from '../components/ScanCapture'
+import { ScanCapture, type ScanPhotos } from '../components/ScanCapture'
 
 export function ExpenseForm({
   initial,
@@ -33,10 +37,14 @@ export function ExpenseForm({
   const [vendor, setVendor] = useState(initial?.vendor ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [projectId, setProjectId] = useState(initial?.projectId ?? defaultProjectId ?? '')
+  const [billScan, setBillScan] = useState<{ data: Record<string, unknown>; photos: ScanPhotos } | null>(null)
+  const [addAsBill, setAddAsBill] = useState(false)
+  const [billFrequency, setBillFrequency] = useState(30)
+  const [billNextDue, setBillNextDue] = useState(addDaysISO(30))
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const applyScan = (data: Record<string, unknown>, scanKind: ScanKind) => {
+  const applyScan = (data: Record<string, unknown>, scanKind: ScanKind, photos: ScanPhotos) => {
     const str = (key: string) => (typeof data[key] === 'string' ? (data[key] as string) : '')
 
     if (scanKind === 'label') {
@@ -45,6 +53,7 @@ export function ExpenseForm({
       const brand = str('brand')
       if (name || model) setDescription([name, model].filter(Boolean).join(' '))
       if (brand) setVendor(brand)
+      setBillScan(null)
       setError('')
       toast('Details filled from photo')
       return
@@ -82,6 +91,16 @@ export function ExpenseForm({
     }
 
     setError('')
+    if (scanKind === 'bill') {
+      const frequencyDays = frequencyToDays(str('frequency'))
+      const dueValue = str('dueDate')
+      setBillScan({ data, photos })
+      setBillFrequency(frequencyDays)
+      setBillNextDue(/^\d{4}-\d{2}-\d{2}$/.test(dueValue) ? dueValue : addDaysISO(frequencyDays))
+      setAddAsBill(true)
+    } else {
+      setBillScan(null)
+    }
     toast(filled > 0 ? 'Details filled from photo' : 'Could not read details — add them manually', filled > 0 ? 'success' : 'error')
   }
 
@@ -96,22 +115,65 @@ export function ExpenseForm({
       setError('Choose a date.')
       return
     }
+    const createBill = addAsBill && billScan !== null
+    if (createBill && !billNextDue) {
+      setError('Add the next due date for the recurring bill.')
+      return
+    }
     setSaving(true)
     try {
       const timestamp = now()
-      await db.expenses.put({
-        id: initial?.id ?? uid(),
-        date,
-        category,
-        amount: parsedAmount,
-        vendor: trimmed(vendor),
-        description: trimmed(description),
-        projectId: projectId || undefined,
-        itemId: initial?.itemId,
-        createdAt: initial?.createdAt ?? timestamp,
-        updatedAt: timestamp,
+      await db.transaction('rw', [db.expenses, db.bills, db.billPhotos], async () => {
+        await db.expenses.put({
+          id: initial?.id ?? uid(),
+          date,
+          category,
+          amount: parsedAmount,
+          vendor: trimmed(vendor),
+          description: trimmed(description),
+          projectId: projectId || undefined,
+          itemId: initial?.itemId,
+          createdAt: initial?.createdAt ?? timestamp,
+          updatedAt: timestamp,
+        })
+        if (createBill && billScan) {
+          const account = typeof billScan.data.accountNumber === 'string' ? billScan.data.accountNumber : ''
+          const billId = uid()
+          await db.bills.put({
+            id: billId,
+            name: trimmed(description) || (trimmed(vendor) ? `${trimmed(vendor)} bill` : 'Recurring bill'),
+            category,
+            amount: parsedAmount,
+            frequencyDays: billFrequency,
+            nextDue: billNextDue,
+            provider: trimmed(vendor),
+            notes: account ? `Account ${account}` : undefined,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+          const photos: BillPhoto[] = []
+          if (billScan.photos.front) {
+            photos.push({
+              id: uid(),
+              billId,
+              kind: 'front',
+              data: billScan.photos.frontArchive ?? billScan.photos.front,
+              createdAt: timestamp,
+            })
+          }
+          if (billScan.photos.back) {
+            photos.push({
+              id: uid(),
+              billId,
+              kind: 'back',
+              data: billScan.photos.backArchive ?? billScan.photos.back,
+              createdAt: timestamp,
+            })
+          }
+          if (photos.length > 0) await db.billPhotos.bulkPut(photos)
+        }
       })
-      toast(initial ? 'Expense updated' : 'Expense recorded')
+      toast(initial ? 'Expense updated' : createBill ? 'Expense recorded and recurring bill saved' : 'Expense recorded')
       onClose()
     } catch {
       setError('Could not save this expense. Please try again.')
@@ -137,6 +199,50 @@ export function ExpenseForm({
             { value: 'label', label: 'Appliance label' },
           ]}
         />
+
+        {billScan ? (
+          <div className="rounded-xl border border-line bg-cream/60 p-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={addAsBill}
+                onChange={(event) => setAddAsBill(event.target.checked)}
+                className="mt-0.5 size-4 shrink-0 accent-brand"
+              />
+              <span>
+                <span className="block text-sm font-medium text-ink">Also save as a recurring bill</span>
+                <span className="mt-0.5 block text-xs text-muted">
+                  Adds it to Recurring bills so you get reminded before it is due. The bill photo is kept until you mark it paid.
+                </span>
+              </span>
+            </label>
+            {addAsBill ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Field label="Next due" htmlFor="bill-next-due">
+                  <Input
+                    id="bill-next-due"
+                    type="date"
+                    value={billNextDue}
+                    onChange={(event) => setBillNextDue(event.target.value)}
+                  />
+                </Field>
+                <Field label="Repeats" htmlFor="bill-frequency">
+                  <Select
+                    id="bill-frequency"
+                    value={billFrequency}
+                    onChange={(event) => setBillFrequency(Number(event.target.value))}
+                  >
+                    {BILL_FREQUENCIES.map((option) => (
+                      <option key={option.days} value={option.days}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Amount" htmlFor="expense-amount">
