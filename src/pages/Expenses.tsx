@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { CalendarDays, Pencil, PieChart, Plus, ReceiptText, Trash2, TrendingUp, Wallet } from 'lucide-react'
 import {
@@ -32,7 +33,15 @@ import { ExpenseForm } from '../features/ExpenseForm'
 export function Expenses() {
   const toast = useToast()
   const settings = useSettings()
-  const [month, setMonth] = useState(currentMonthKey())
+  const [params, setParams] = useSearchParams()
+  const monthParam = params.get('month') ?? ''
+  const month = monthParam === 'all' ? '' : /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey()
+  const setMonth = (value: string) => {
+    const next = new URLSearchParams(params)
+    if (value) next.set('month', value)
+    else next.set('month', 'all')
+    setParams(next, { replace: true })
+  }
   const [category, setCategory] = useState<'all' | ExpenseCategory>('all')
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)

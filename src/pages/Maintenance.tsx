@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { CalendarClock, Check, Pencil, Plus, Trash2, TriangleAlert, Wrench } from 'lucide-react'
 import {
@@ -31,12 +32,23 @@ import {
 } from '../components/ui'
 import { MaintenanceForm } from '../features/MaintenanceForm'
 
-type Filter = 'all' | 'overdue' | 'soon' | 'upcoming'
+type Filter = 'all' | 'overdue' | 'due' | 'soon' | 'upcoming'
+
+const isFilter = (value: string | null): value is Filter =>
+  value === 'overdue' || value === 'due' || value === 'soon' || value === 'upcoming'
 
 export function Maintenance() {
   const toast = useToast()
   const settings = useSettings()
-  const [filter, setFilter] = useState<Filter>('all')
+  const [params, setParams] = useSearchParams()
+  const filterParam = params.get('filter')
+  const filter: Filter = isFilter(filterParam) ? filterParam : 'all'
+  const setFilter = (value: Filter) => {
+    const next = new URLSearchParams(params)
+    if (value === 'all') next.delete('filter')
+    else next.set('filter', value)
+    setParams(next, { replace: true })
+  }
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<MaintenanceTask | null>(null)
@@ -53,12 +65,14 @@ export function Maintenance() {
     const days = daysUntil(task.nextDue)
     return days >= 0 && days <= 30
   })
+  const dueNow = tasks.filter((task) => daysUntil(task.nextDue) <= 30)
 
   const query = search.trim().toLowerCase()
   const filtered = tasks
     .filter((task) => {
       const days = daysUntil(task.nextDue)
       if (filter === 'overdue' && days >= 0) return false
+      if (filter === 'due' && days > 30) return false
       if (filter === 'soon' && (days < 0 || days > 30)) return false
       if (filter === 'upcoming' && days <= 30) return false
       if (!query) return true
@@ -134,6 +148,7 @@ export function Maintenance() {
           onChange={setFilter}
           tabs={[
             { value: 'all', label: 'All', count: tasks.length },
+            { value: 'due', label: 'Due 30d', count: dueNow.length },
             { value: 'overdue', label: 'Overdue', count: overdue.length },
             { value: 'soon', label: 'Due soon', count: dueSoon.length },
             { value: 'upcoming', label: 'Upcoming' },

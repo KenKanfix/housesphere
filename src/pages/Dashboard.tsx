@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   ArrowRight,
@@ -47,6 +47,7 @@ function greeting(): string {
 
 export function Dashboard() {
   const settings = useSettings()
+  const navigate = useNavigate()
   const [showItem, setShowItem] = useState(false)
   const [showExpense, setShowExpense] = useState(false)
 
@@ -185,13 +186,20 @@ export function Dashboard() {
       </section>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat icon={<Package className="size-4" />} label="Items tracked" value={items.length} hint={`${rooms.length} rooms`} />
+        <Stat
+          icon={<Package className="size-4" />}
+          label="Items tracked"
+          value={items.length}
+          hint={`${rooms.length} rooms`}
+          onClick={() => navigate('/inventory')}
+        />
         <Stat
           icon={<Wrench className="size-4" />}
           label="Due in 30 days"
           value={tasksDue.length}
           hint={overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : 'Nothing overdue'}
           tone={overdueTasks.length > 0 ? 'danger' : 'brand'}
+          onClick={() => navigate('/maintenance?filter=due')}
         />
         <Stat
           icon={<ShieldCheck className="size-4" />}
@@ -199,12 +207,14 @@ export function Dashboard() {
           value={warrantyReview.length}
           hint="Next 90 days"
           tone={warrantyReview.length > 0 ? 'amber' : 'brand'}
+          onClick={() => navigate('/warranties?filter=review')}
         />
         <Stat
           icon={<Wallet className="size-4" />}
           label="Spent this month"
           value={formatMoney(monthSpend, settings.currency, true)}
           hint={`${documentReview.length} renewals due`}
+          onClick={() => navigate(`/expenses?month=${month}`)}
         />
       </div>
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Eye, Pencil, Plus, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { db, daysUntil, formatDate, formatDue, type Warranty } from '../lib/db'
@@ -18,11 +19,22 @@ import {
 } from '../components/ui'
 import { WarrantyForm } from '../features/WarrantyForm'
 
-type Filter = 'all' | 'active' | 'expiring' | 'expired'
+type Filter = 'all' | 'review' | 'active' | 'expiring' | 'expired'
+
+const isFilter = (value: string | null): value is Filter =>
+  value === 'review' || value === 'active' || value === 'expiring' || value === 'expired'
 
 export function Warranties() {
   const toast = useToast()
-  const [filter, setFilter] = useState<Filter>('all')
+  const [params, setParams] = useSearchParams()
+  const filterParam = params.get('filter')
+  const filter: Filter = isFilter(filterParam) ? filterParam : 'all'
+  const setFilter = (value: Filter) => {
+    const next = new URLSearchParams(params)
+    if (value === 'all') next.delete('filter')
+    else next.set('filter', value)
+    setParams(next, { replace: true })
+  }
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Warranty | null>(null)
@@ -41,10 +53,12 @@ export function Warranties() {
     return days >= 0 && days <= 30
   })
   const active = warranties.filter((warranty) => daysUntil(warranty.expiryDate) >= 0)
+  const review = warranties.filter((warranty) => daysUntil(warranty.expiryDate) <= 90)
 
   const query = search.trim().toLowerCase()
   const filtered = warranties
     .filter((warranty) => {
+      if (filter === 'review' && daysUntil(warranty.expiryDate) > 90) return false
       if (filter === 'active' && daysUntil(warranty.expiryDate) < 0) return false
       if (filter === 'expiring') {
         const days = daysUntil(warranty.expiryDate)
@@ -126,6 +140,7 @@ export function Warranties() {
           onChange={setFilter}
           tabs={[
             { value: 'all', label: 'All', count: warranties.length },
+            { value: 'review', label: 'Review 90d', count: review.length },
             { value: 'active', label: 'Active', count: active.length },
             { value: 'expiring', label: 'Expiring', count: expiring.length },
             { value: 'expired', label: 'Expired', count: expired.length },
