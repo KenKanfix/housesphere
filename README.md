@@ -36,7 +36,7 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:5173. The AI assistant is optional and off by default. Turn it on in Settings and either use the deployment key — set `GEMINI_API_KEY` (or `OPENAI_API_KEY`) in `.env.local`; the built-in AI allows 5 actions per day per device — or enter your own Gemini/OpenAI key, which is stored only on that device.
+Open http://localhost:5173. The AI assistant is optional and off by default. Turn it on in Settings and either use the deployment key — set `GEMINI_API_KEY` (or `OPENAI_API_KEY`) in `.env.local`; the built-in AI allows 3 actions per day per device — or enter your own Gemini/OpenAI key, which is stored only on that device.
 
 ### Environment variables
 

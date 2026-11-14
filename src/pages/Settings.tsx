@@ -294,7 +294,7 @@ function AiSettingsCard({ settings }: { settings: AppSettings }) {
           }`}
         >
           <p className="text-sm font-semibold text-ink">HouseSphere AI</p>
-          <p className="mt-1 text-[11px] text-muted">Shared key · 5 free actions per day</p>
+          <p className="mt-1 text-[11px] text-muted">Shared key · 3 free actions per day</p>
         </button>
         <button
           type="button"

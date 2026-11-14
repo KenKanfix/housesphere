@@ -12,7 +12,7 @@ export interface AiStatus {
 
 export type ScanKind = 'label' | 'receipt' | 'manual' | 'bill'
 
-export const AI_DAILY_LIMIT = 5
+export const AI_DAILY_LIMIT = 3
 const AI_USAGE_KEY = 'housesphere:ai-usage'
 
 export interface AiUsage {
