@@ -25,7 +25,7 @@ import {
 } from '../lib/db'
 import { APP_VERSION, PRIVACY_POLICY_PATH } from '../lib/appInfo'
 import { useInstallPrompt, useSettings } from '../lib/hooks'
-import { getAiStatus, type AiStatus } from '../lib/ai'
+import { getAiStatus, getAiUsage, type AiStatus, type AiUsage } from '../lib/ai'
 import { loadDemoData } from '../lib/demo'
 import { requestNotificationPermission } from '../lib/reminders'
 import { useToast } from '../components/toastContext'
@@ -165,13 +165,232 @@ function RemindersCard({ settings }: { settings: AppSettings }) {
   )
 }
 
-export function SettingsPage() {
+function AiSettingsCard({ settings }: { settings: AppSettings }) {
   const toast = useToast()
   const navigate = useNavigate()
+  const [status, setStatus] = useState<AiStatus | null>(null)
+  const [aiUsage, setAiUsage] = useState<AiUsage>(() => getAiUsage())
+  const [keyInput, setKeyInput] = useState('')
+  const [model, setModel] = useState(settings.aiModel ?? '')
+  const [provider, setProvider] = useState<'gemini' | 'openai'>(
+    settings.aiProvider === 'openai' ? 'openai' : 'gemini',
+  )
+  const [saving, setSaving] = useState(false)
+
+  const enabled = settings.aiEnabled ?? false
+  const mode = settings.aiMode === 'own' ? 'own' : 'app'
+  const hasKey = Boolean(settings.aiApiKey?.trim())
+
+  useEffect(() => {
+    void getAiStatus().then(setStatus)
+  }, [])
+
+  const refresh = () => {
+    void getAiStatus().then(setStatus)
+    setAiUsage(getAiUsage())
+  }
+
+  const update = async (patch: Partial<AppSettings>, message?: string) => {
+    try {
+      await db.settings.update('app', { ...patch, updatedAt: now() })
+      if (message) toast(message)
+    } catch {
+      toast('Could not save your AI settings', 'error')
+    }
+  }
+
+  const save = async () => {
+    const key = keyInput.trim()
+    setSaving(true)
+    try {
+      const patch: Partial<AppSettings> = {
+        aiProvider: provider,
+        aiModel: model.trim() || undefined,
+        updatedAt: now(),
+      }
+      if (key) {
+        patch.aiApiKey = key
+        patch.aiMode = 'own'
+        patch.aiEnabled = true
+      }
+      await db.settings.update('app', patch)
+      setKeyInput('')
+      setAiUsage(getAiUsage())
+      toast(key ? 'Your API key is saved on this device' : 'AI settings saved')
+    } catch {
+      toast('Could not save your AI settings', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const removeKey = async () => {
+    try {
+      const current = await db.settings.get('app')
+      if (current) {
+        const { aiApiKey, ...rest } = current
+        void aiApiKey
+        await db.settings.put({ ...rest, aiMode: 'app', updatedAt: now() })
+      }
+      toast('Saved API key removed')
+    } catch {
+      toast('Could not remove the saved key', 'error')
+    }
+  }
+
+  const serverReady = Boolean(status?.configured)
+  const badgeTone = mode === 'own' ? (hasKey ? 'ok' : 'amber') : serverReady ? 'ok' : 'amber'
+  const badgeLabel =
+    mode === 'own'
+      ? hasKey
+        ? `Your key · ${provider === 'openai' ? 'OpenAI' : 'Gemini'}`
+        : 'No key saved'
+      : serverReady
+        ? `Ready · ${status?.model ?? 'AI'}`
+        : 'Server key not set'
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+            <KeyRound className="size-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-ink">AI home assistant</h2>
+            <p className="mt-0.5 max-w-md text-xs text-muted">
+              Optional chat and photo scanning. Everything else in HouseSphere works without AI.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label="Toggle AI assistant"
+          onClick={() => void update({ aiEnabled: !enabled }, enabled ? 'AI turned off' : 'AI turned on')}
+          className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+            enabled ? 'bg-brand' : 'bg-black/15'
+          }`}
+        >
+          <span
+            className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${
+              enabled ? 'translate-x-5' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+      </div>
+
+      <Badge tone={badgeTone} className="mt-3">
+        {badgeLabel}
+      </Badge>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => void update({ aiMode: 'app' })}
+          className={`rounded-xl border p-3 text-left transition-colors ${
+            mode === 'app' ? 'border-brand bg-brand-soft/40' : 'border-line bg-surface hover:border-brand/40'
+          }`}
+        >
+          <p className="text-sm font-semibold text-ink">HouseSphere AI</p>
+          <p className="mt-1 text-[11px] text-muted">Shared key · 5 free actions per day</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => void update({ aiMode: 'own' })}
+          className={`rounded-xl border p-3 text-left transition-colors ${
+            mode === 'own' ? 'border-brand bg-brand-soft/40' : 'border-line bg-surface hover:border-brand/40'
+          }`}
+        >
+          <p className="text-sm font-semibold text-ink">Use your own key</p>
+          <p className="mt-1 text-[11px] text-muted">Unlimited · you pay the AI provider directly</p>
+        </button>
+      </div>
+
+      {mode === 'app' ? (
+        <div className="mt-3 rounded-xl bg-cream px-3.5 py-3 text-xs text-muted">
+          {serverReady ? (
+            <p>
+              {aiUsage.remaining} of {aiUsage.limit} free AI actions left today. The counter resets at local midnight on this device.
+            </p>
+          ) : (
+            <p>
+              Built-in AI is not configured on this deployment yet. Use your own key below, or set{' '}
+              <code className="rounded bg-black/5 px-1 py-0.5">GEMINI_API_KEY</code> (or{' '}
+              <code className="rounded bg-black/5 px-1 py-0.5">OPENAI_API_KEY</code>) in your environment variables.
+            </p>
+          )}
+          {aiUsage.remaining <= 0 ? (
+            <p className="mt-1 font-medium text-amber">Today&apos;s free actions are used up. Switch to your own key for unlimited use.</p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3 rounded-xl bg-cream px-3.5 py-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Provider" htmlFor="ai-provider">
+              <Select
+                id="ai-provider"
+                value={provider}
+                onChange={(event) => setProvider(event.target.value as 'gemini' | 'openai')}
+              >
+                <option value="gemini">Google Gemini</option>
+                <option value="openai">OpenAI</option>
+              </Select>
+            </Field>
+            <Field label="Model (optional)" htmlFor="ai-model">
+              <Input
+                id="ai-model"
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+                placeholder={provider === 'gemini' ? 'gemini-3.8-flash' : 'gpt-4o-mini'}
+              />
+            </Field>
+          </div>
+          <Field label="API key" htmlFor="ai-key">
+            <Input
+              id="ai-key"
+              type="password"
+              autoComplete="off"
+              value={keyInput}
+              onChange={(event) => setKeyInput(event.target.value)}
+              placeholder={hasKey ? 'A key is saved on this device — paste a new one to replace it' : 'Paste your API key'}
+            />
+          </Field>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => void save()} loading={saving}>
+              Save
+            </Button>
+            {hasKey ? (
+              <Button size="sm" variant="ghost" onClick={() => void removeKey()}>
+                Remove saved key
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-[11px] text-muted/80">
+            Your key is stored only on this device and is never included in exported backups. Requests pass through this app&apos;s
+            serverless function, which does not log the key.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-3 flex justify-end gap-2">
+        <Button size="sm" variant="secondary" onClick={refresh} icon={<RefreshCw className="size-4" />}>
+          Check status
+        </Button>
+        <Button size="sm" variant="soft" onClick={() => navigate('/assistant')}>
+          Open assistant
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+export function SettingsPage() {
+  const toast = useToast()
   const settings = useSettings()
   const { canInstall, installed, promptInstall } = useInstallPrompt()
 
-  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null)
   const [usage, setUsage] = useState<number | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -187,10 +406,6 @@ export function SettingsPage() {
     }),
     [],
   )
-
-  useEffect(() => {
-    void getAiStatus().then(setAiStatus)
-  }, [])
 
   const estimateStorage = () => {
     if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
@@ -216,7 +431,11 @@ export function SettingsPage() {
       data.providers = await db.providers.toArray()
       data.serviceRecords = await db.serviceRecords.toArray()
       data.aiMessages = await db.aiMessages.toArray()
-      data.settings = await db.settings.toArray()
+      data.settings = (await db.settings.toArray()).map((row) => {
+        const safe = { ...row }
+        delete safe.aiApiKey
+        return safe
+      })
 
       const snapshot = {
         app: 'HouseSphere',
@@ -259,11 +478,22 @@ export function SettingsPage() {
           db.settings,
         ],
         async () => {
+          const existingKey = (await db.settings.get('app'))?.aiApiKey
           for (const table of TABLES) {
             const rows = data[table]
             if (Array.isArray(rows) && rows.length > 0) {
               const target = db.table(table)
-              await target.bulkPut(rows)
+              if (table === 'settings') {
+                const safe = rows.map((row) => {
+                  const copy = { ...(row as Record<string, unknown>) }
+                  delete copy.aiApiKey
+                  if (existingKey) copy.aiApiKey = existingKey
+                  return copy
+                })
+                await target.bulkPut(safe)
+              } else {
+                await target.bulkPut(rows)
+              }
             }
           }
         },
@@ -300,6 +530,7 @@ export function SettingsPage() {
     try {
       await db.delete()
       localStorage.removeItem('housesphere:last-reminder')
+      localStorage.removeItem('housesphere:ai-usage')
       window.location.reload()
     } catch {
       toast('Could not clear the local database', 'error')
@@ -317,40 +548,7 @@ export function SettingsPage() {
 
         <RemindersCard key={`reminders-${settings.updatedAt}`} settings={settings} />
 
-        <Card className="p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
-                <KeyRound className="size-4" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-ink">AI home assistant</h2>
-                <p className="mt-0.5 max-w-md text-xs text-muted">
-                  Uses your own Google AI Studio or OpenAI key via a server-side function, so the key is never stored in the browser.
-                </p>
-              </div>
-            </div>
-            <Badge tone={aiStatus?.configured ? 'ok' : 'amber'}>
-              {aiStatus?.configured ? `Ready · ${aiStatus.model ?? 'AI'}` : 'Not configured'}
-            </Badge>
-          </div>
-          <div className="mt-3 rounded-xl bg-cream px-3.5 py-3 text-xs text-muted">
-            <p>
-              Add <code className="rounded bg-black/5 px-1 py-0.5">GEMINI_API_KEY</code> (or{' '}
-              <code className="rounded bg-black/5 px-1 py-0.5">OPENAI_API_KEY</code>) to{' '}
-              <code className="rounded bg-black/5 px-1 py-0.5">.env.local</code> locally and to your Vercel environment variables in
-              production.
-            </p>
-          </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button size="sm" variant="secondary" onClick={() => void getAiStatus().then(setAiStatus)} icon={<RefreshCw className="size-4" />}>
-              Check status
-            </Button>
-            <Button size="sm" variant="soft" onClick={() => navigate('/assistant')}>
-              Open assistant
-            </Button>
-          </div>
-        </Card>
+        <AiSettingsCard key={`ai-${settings.updatedAt}`} settings={settings} />
 
         <Card className="p-5">
           <div className="mb-1 flex items-center gap-2">

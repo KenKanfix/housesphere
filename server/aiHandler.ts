@@ -18,6 +18,9 @@ export interface AiRequestBody {
   context?: string
   kind?: 'label' | 'receipt' | 'manual' | 'bill'
   images?: string[]
+  apiKey?: string
+  provider?: AiProvider
+  model?: string
 }
 
 export interface AiResult {
@@ -119,6 +122,20 @@ Set "frequency" from the billing period shown on the bill (for example a quarter
 Amount must be a number in the bill currency, without symbols. Use 0 if it cannot be read.`,
 }
 
+function sanitizedKey(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const key = value.trim()
+  if (key.length < 8 || key.length > 400 || /\s/.test(key)) return undefined
+  return key
+}
+
+function sanitizedModel(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback
+  const model = value.trim()
+  if (!/^[A-Za-z0-9._-]{2,80}$/.test(model)) return fallback
+  return model
+}
+
 function geminiKey(env: AiEnv): string | undefined {
   return env.GEMINI_API_KEY || env.OPENAI_API_KEY
 }
@@ -143,6 +160,32 @@ export function getAiStatus(env: AiEnv): AiStatus {
   const model = provider === 'gemini' ? geminiModel(env) : env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL
   const configured = provider === 'gemini' ? Boolean(geminiKey(env)) : Boolean(env.OPENAI_API_KEY)
   return { configured, provider, model }
+}
+
+function resolveRequestConfig(body: AiRequestBody, env: AiEnv): RequestConfig {
+  const ownKey = sanitizedKey(body.apiKey)
+
+  if (ownKey) {
+    const provider: AiProvider = body.provider === 'openai' ? 'openai' : 'gemini'
+    const fallback = provider === 'gemini' ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL
+    return {
+      configured: true,
+      provider,
+      model: sanitizedModel(body.model, fallback),
+      apiKey: ownKey,
+      ownKey: true,
+    }
+  }
+
+  const status = getAiStatus(env)
+  return {
+    configured: status.configured,
+    provider: status.provider,
+    model: status.model,
+    apiKey: status.provider === 'gemini' ? geminiKey(env) : env.OPENAI_API_KEY,
+    ownKey: false,
+    baseUrl: env.OPENAI_BASE_URL,
+  }
 }
 
 function extractJson(text: string): unknown {
@@ -182,11 +225,25 @@ function parseDataUrl(image: string): { mimeType: string; data: string } | null 
   return { mimeType: match[1], data: match[2] }
 }
 
+interface ProviderConfig {
+  apiKey: string
+  baseUrl?: string
+}
+
+interface RequestConfig {
+  configured: boolean
+  provider: AiProvider
+  model: string
+  apiKey?: string
+  ownKey: boolean
+  baseUrl?: string
+}
+
 async function callOpenAI(
-  env: AiEnv,
+  config: ProviderConfig,
   request: ModelRequest,
 ): Promise<ProviderResult> {
-  const baseUrl = env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
+  const baseUrl = config.baseUrl || 'https://api.openai.com/v1'
   const messages: Record<string, unknown>[] = []
 
   if (request.system) {
@@ -222,7 +279,7 @@ async function callOpenAI(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(60_000),
@@ -239,7 +296,7 @@ async function callOpenAI(
 }
 
 async function callGemini(
-  env: AiEnv,
+  apiKey: string,
   request: ModelRequest,
 ): Promise<ProviderResult> {
   const contents: GeminiContent[] = []
@@ -282,7 +339,7 @@ async function callGemini(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-goog-api-key': geminiKey(env) ?? '',
+      'x-goog-api-key': apiKey,
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(60_000),
@@ -306,11 +363,16 @@ async function callGemini(
   }
 }
 
-function requestError(provider: AiProvider, status: number, payload?: any): string {
+function requestError(provider: AiProvider, status: number, payload?: any, ownKey = false): string {
   const detail =
     typeof payload?.error?.message === 'string' ? payload.error.message : undefined
 
   if (status === 401 || status === 403) {
+    if (ownKey) {
+      return provider === 'gemini'
+        ? 'Google AI Studio rejected your API key. Check it in Settings.'
+        : 'OpenAI rejected your API key. Check it in Settings.'
+    }
     return provider === 'gemini'
       ? 'Google AI Studio rejected the API key. Check GEMINI_API_KEY.'
       : 'OpenAI rejected the API key. Check OPENAI_API_KEY.'
@@ -327,22 +389,26 @@ function requestError(provider: AiProvider, status: number, payload?: any): stri
 }
 
 export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<AiResult> {
-  const status = getAiStatus(env)
+  const config = resolveRequestConfig(body, env)
 
-  if (!status.configured) {
+  if (typeof body.apiKey === 'string' && body.apiKey.trim() && !config.ownKey) {
+    return { status: 400, body: { error: 'That API key looks invalid. Paste the full key in Settings.' } }
+  }
+
+  if (!config.configured || !config.apiKey) {
     return {
       status: 503,
       body: {
         error:
-          status.provider === 'gemini'
-            ? 'The AI assistant is not configured yet. Add GEMINI_API_KEY (or OPENAI_API_KEY) to your environment (see .env.example) and redeploy.'
-            : 'The AI assistant is not configured yet. Add OPENAI_API_KEY to your environment (see .env.example) and redeploy.',
+          'The AI assistant is not configured yet. Add your own API key in Settings, or set GEMINI_API_KEY / OPENAI_API_KEY on the server and redeploy.',
       },
     }
   }
 
-  const provider = status.provider
-  const model = status.model
+  const provider = config.provider
+  const model = config.model
+  const apiKey = config.apiKey
+  const openAiConfig: ProviderConfig = { apiKey, baseUrl: config.ownKey ? undefined : config.baseUrl }
 
   try {
     if (body.mode === 'scan') {
@@ -358,7 +424,7 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
 
       const result =
         provider === 'gemini'
-          ? await callGemini(env, {
+          ? await callGemini(apiKey, {
               model,
               temperature: 0.1,
               maxTokens: 2048,
@@ -366,7 +432,7 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
               images,
               json: true,
             })
-          : await callOpenAI(env, {
+          : await callOpenAI(openAiConfig, {
               model,
               temperature: 0.1,
               maxTokens: 700,
@@ -378,7 +444,7 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
       if (!result.ok) {
         return {
           status: 502,
-          body: { error: requestError(provider, result.status, result.payload) },
+          body: { error: requestError(provider, result.status, result.payload, config.ownKey) },
         }
       }
 
@@ -404,14 +470,14 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
     const system = buildChatSystem(body.context)
     const result =
       provider === 'gemini'
-        ? await callGemini(env, {
+        ? await callGemini(apiKey, {
             model,
             temperature: 0.4,
             maxTokens: 4096,
             system,
             messages,
           })
-        : await callOpenAI(env, {
+        : await callOpenAI(openAiConfig, {
             model,
             temperature: 0.4,
             maxTokens: 900,
@@ -422,7 +488,7 @@ export async function handleAiRequest(body: AiRequestBody, env: AiEnv): Promise<
     if (!result.ok) {
       return {
         status: 502,
-        body: { error: requestError(provider, result.status, result.payload) },
+        body: { error: requestError(provider, result.status, result.payload, config.ownKey) },
       }
     }
 

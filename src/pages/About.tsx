@@ -13,7 +13,7 @@ const privacyPoints = [
   {
     icon: Cloud,
     title: 'AI features are optional and transient',
-    body: 'When you use the assistant or scan a photo, the text and/or image is sent through our serverless API to the configured AI provider (Google Gemini or OpenAI) to generate the result. The API key stays server-side and the request is not stored by us.',
+    body: 'When you use the assistant or scan a photo, the text and/or image is sent through our serverless API to the AI provider (Google Gemini or OpenAI) to generate the result. The built-in key stays server-side. If you choose to use your own key, it is stored only on this device, sent with your requests and excluded from backups.',
   },
   {
     icon: WifiOff,
@@ -100,8 +100,9 @@ export function About() {
           </div>
           <p className="text-xs leading-relaxed text-muted">
             The assistant is optional. When you ask a question or scan a label, receipt or bill, the content you provide is sent to the app’s
-            serverless endpoint and forwarded to the configured AI provider to produce a response or extract details. Photos are used only for
-            that request. Do not scan documents you are not comfortable sending to the AI provider.
+            serverless endpoint and forwarded to the AI provider to produce a response or extract details. Photos are used only for that
+            request. If you use your own API key, it is stored only on this device. Do not scan documents you are not comfortable sending to the
+            AI provider.
           </p>
           <p className="mt-2 text-xs leading-relaxed text-muted">
             You can review the providers’ own policies at{' '}

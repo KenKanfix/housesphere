@@ -192,11 +192,13 @@
         <h2>3. AI assistant and photo scanning</h2>
         <p>
           The AI assistant and scanning features are optional. When you ask a question or scan a label, receipt, bill or document,
-          the text and/or image you provide is sent to the app’s serverless API endpoint and forwarded to the AI provider configured
-          for the deployment — currently Google Gemini or OpenAI — solely to generate a response or extract details.
+          the text and/or image you provide is sent to the app’s serverless API endpoint and forwarded to the AI provider — currently
+          Google Gemini or OpenAI — solely to generate a response or extract details. The provider is either the one configured for
+          the deployment or the one you choose when you use your own API key.
         </p>
         <ul>
-          <li>API keys are stored server-side and are never exposed to your browser.</li>
+          <li>The built-in API key is stored server-side and is never exposed to your browser.</li>
+          <li>If you enter your own API key, it is stored only on this device, sent with your requests, and excluded from exported backups.</li>
           <li>HouseSphere does not store your AI requests or images after the request completes.</li>
           <li>The AI provider may process requests under its own terms and privacy policy.</li>
           <li>Only use scanning with documents you are comfortable sending to the AI provider.</li>

@@ -177,6 +177,11 @@ export interface AppSettings {
   householdName: string
   currency: string
   reminderNotifications: boolean
+  aiEnabled?: boolean
+  aiMode?: 'app' | 'own'
+  aiProvider?: 'gemini' | 'openai'
+  aiModel?: string
+  aiApiKey?: string
   createdAt: number
   updatedAt: number
 }
@@ -451,6 +456,9 @@ export async function ensureDefaults(): Promise<void> {
       householdName: 'My Home',
       currency: 'AUD',
       reminderNotifications: false,
+      aiEnabled: false,
+      aiMode: 'app',
+      aiProvider: 'gemini',
       createdAt: timestamp,
       updatedAt: timestamp,
     })

@@ -7,6 +7,9 @@ const FALLBACK_SETTINGS: AppSettings = {
   householdName: 'My Home',
   currency: 'AUD',
   reminderNotifications: false,
+  aiEnabled: false,
+  aiMode: 'app',
+  aiProvider: 'gemini',
   createdAt: 0,
   updatedAt: 0,
 }

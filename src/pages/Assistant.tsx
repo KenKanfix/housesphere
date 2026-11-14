@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ArrowRight, FileText, KeyRound, Loader2, Package, ReceiptText, RefreshCw, ScanLine, Send, Sparkles, Trash2 } from 'lucide-react'
 import {
@@ -17,7 +18,17 @@ import {
   type ItemCategory,
 } from '../lib/db'
 import { buildHouseholdContext } from '../lib/context'
-import { askAi, getAiStatus, scanImage, type AiStatus, type ScanKind } from '../lib/ai'
+import {
+  askAi,
+  getAiSetup,
+  getAiStatus,
+  getAiUsage,
+  scanImage,
+  type AiSetup,
+  type AiStatus,
+  type AiUsage,
+  type ScanKind,
+} from '../lib/ai'
 import { useToast } from '../components/toastContext'
 import { Badge, Button, Card, Field, IconButton, PageHeader, Select, Tabs } from '../components/ui'
 import { PhotoInput } from '../components/PhotoInput'
@@ -48,6 +59,8 @@ export function Assistant() {
   const toast = useToast()
   const [tab, setTab] = useState<'chat' | 'scan'>('chat')
   const [status, setStatus] = useState<AiStatus | null>(null)
+  const [setup, setSetup] = useState<AiSetup | null>(null)
+  const [usage, setUsage] = useState<AiUsage>(() => getAiUsage())
 
   const messages = useLiveQuery(() => db.aiMessages.orderBy('createdAt').toArray(), []) ?? []
   const rooms = useLiveQuery(() => db.rooms.toArray(), []) ?? []
@@ -68,17 +81,71 @@ export function Assistant() {
 
   const refreshStatus = () => {
     void getAiStatus().then(setStatus)
+    void getAiSetup().then(setSetup)
+    setUsage(getAiUsage())
   }
 
   useEffect(() => {
-    refreshStatus()
+    void getAiStatus().then(setStatus)
+    void getAiSetup().then(setSetup)
+  }, [])
+
+  useEffect(() => {
+    const onFocus = () => {
+      void getAiSetup().then(setSetup)
+      setUsage(getAiUsage())
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
   }, [])
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages.length, thinking])
 
-  const configured = Boolean(status?.configured)
+  const enabled = setup?.enabled ?? false
+  const ownMode = setup?.mode === 'own'
+  const needsKey = ownMode && !setup?.hasKey
+  const outOfQuota = !ownMode && usage.remaining <= 0
+  const serverReady = Boolean(status?.configured)
+  const configured = Boolean(setup) && enabled && !needsKey && !outOfQuota && (ownMode || serverReady)
+
+  const statusLabel = !setup
+    ? 'Checking…'
+    : !enabled
+      ? 'AI off'
+      : needsKey
+        ? 'Add your key'
+        : outOfQuota
+          ? 'Daily limit reached'
+          : ownMode
+            ? `Your key · ${setup.provider === 'openai' ? 'OpenAI' : 'Gemini'}`
+            : `App AI · ${usage.remaining}/${usage.limit}`
+  const statusTone = !setup || !enabled || needsKey ? 'amber' : outOfQuota ? 'danger' : 'ok'
+
+  const notice = !setup
+    ? null
+    : !enabled
+      ? {
+          title: 'AI is turned off',
+          body: 'Turn it on in Settings to chat or scan photos. The rest of HouseSphere works fully offline without AI.',
+        }
+      : needsKey
+        ? {
+            title: 'Add your own API key',
+            body: 'Paste a Google Gemini or OpenAI key in Settings, or switch back to the HouseSphere AI.',
+          }
+        : outOfQuota
+          ? {
+              title: "Today's free limit is used up",
+              body: `You have used all ${usage.limit} free AI actions today. Try again tomorrow, or add your own key in Settings for unlimited use.`,
+            }
+          : !ownMode && !serverReady
+            ? {
+                title: 'Connect the AI assistant',
+                body: 'Built-in AI is not configured on this deployment. Add your own key in Settings, or set GEMINI_API_KEY / OPENAI_API_KEY on the server.',
+              }
+            : null
 
   const send = async (text?: string) => {
     const content = (text ?? input).trim()
@@ -90,6 +157,7 @@ export function Assistant() {
       const context = await buildHouseholdContext()
       const history = [...messages.map((message) => ({ role: message.role, content: message.content })), { role: 'user' as const, content }]
       const answer = await askAi(history, context)
+      setUsage(getAiUsage())
       await db.aiMessages.put({ id: uid(), role: 'assistant', content: answer, createdAt: now() })
     } catch (error) {
       toast(error instanceof Error ? error.message : 'The assistant could not answer right now.', 'error')
@@ -129,6 +197,7 @@ export function Assistant() {
     setResult(null)
     try {
       const data = await scanImage(kind, photos)
+      setUsage(getAiUsage())
       setResult(data)
       if (kind === 'bill') setBillFrequency(frequencyToDays(asString(data, 'frequency')))
     } catch (error) {
@@ -288,7 +357,7 @@ export function Assistant() {
         subtitle="Scan labels and receipts, or ask questions about the home information you have stored."
         action={
           <div className="flex items-center gap-2">
-            <Badge tone={configured ? 'ok' : 'amber'}>{configured ? `AI ready · ${status?.model ?? 'AI'}` : 'Needs API key'}</Badge>
+            <Badge tone={statusTone}>{statusLabel}</Badge>
             <IconButton label="Refresh AI status" onClick={refreshStatus}>
               <RefreshCw className="size-4" />
             </IconButton>
@@ -296,24 +365,18 @@ export function Assistant() {
         }
       />
 
-      {status && !configured ? (
+      {notice ? (
         <Card className="mb-5 border-amber/30 bg-amber-soft/60 p-4">
           <div className="flex items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-soft text-amber">
               <KeyRound className="size-4" />
             </div>
             <div className="min-w-0 text-sm">
-              <p className="font-semibold text-ink">Connect the AI assistant</p>
-              <p className="mt-1 text-muted">
-                Set <code className="rounded bg-black/5 px-1 py-0.5 text-xs">GEMINI_API_KEY</code> (or{' '}
-                <code className="rounded bg-black/5 px-1 py-0.5 text-xs">OPENAI_API_KEY</code>) in{' '}
-                <code className="rounded bg-black/5 px-1 py-0.5 text-xs">.env.local</code> for local development and in your Vercel
-                project&apos;s environment variables for production, then redeploy.
-              </p>
-              <p className="mt-2 text-xs text-muted/80">
-                The rest of HouseSphere works fully offline without it. Only the text or photo you send from this page goes to your AI
-                provider.
-              </p>
+              <p className="font-semibold text-ink">{notice.title}</p>
+              <p className="mt-1 text-muted">{notice.body}</p>
+              <Link to="/settings" className="mt-2 inline-flex text-xs font-semibold text-brand hover:text-brand-dark">
+                Open Settings →
+              </Link>
             </div>
           </div>
         </Card>
@@ -514,7 +577,7 @@ export function Assistant() {
             >
               Analyse {photos.length > 1 ? 'photos' : 'photo'}
             </Button>
-            {!configured ? <p className="mt-2 text-xs text-muted">Add an AI API key to enable scanning.</p> : null}
+            {notice ? <p className="mt-2 text-xs text-muted">Enable AI in Settings to scan photos.</p> : null}
           </Card>
 
           <Card className="p-5">
@@ -620,7 +683,7 @@ export function Assistant() {
 
       <p className="mt-5 text-center text-[11px] text-muted/80">
         AI features use Google Gemini or OpenAI. Your household data stays on this device except for the context sent when you ask a
-        question.
+        question. The built-in AI includes {usage.limit} free actions per day; your own key is unlimited.
       </p>
     </div>
   )

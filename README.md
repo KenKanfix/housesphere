@@ -36,7 +36,7 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:5173. The AI assistant is optional: set `GEMINI_API_KEY` (or `OPENAI_API_KEY`) in `.env.local` to enable it, otherwise the app reports that it is not configured.
+Open http://localhost:5173. The AI assistant is optional and off by default. Turn it on in Settings and either use the deployment key — set `GEMINI_API_KEY` (or `OPENAI_API_KEY`) in `.env.local`; the built-in AI allows 5 actions per day per device — or enter your own Gemini/OpenAI key, which is stored only on that device.
 
 ### Environment variables
 
@@ -51,7 +51,7 @@ Open http://localhost:5173. The AI assistant is optional: set `GEMINI_API_KEY` (
 
 Google AI Studio now issues `AQ.` authorization keys. HouseSphere calls Gemini's native API, so both `AQ.` and older `AIza` keys work. Do not use the OpenAI-compatible `/v1beta/openai` route with an `AQ.` key.
 
-Never expose the API key to the client. The key is read only by `api/ai.ts` in production and by the Vite dev middleware locally.
+The built-in API key is never sent to the client: it is read only by `api/ai.ts` in production and by the Vite dev middleware locally. If a user chooses to use their own key, it is stored in that device's IndexedDB, sent with each request through the same endpoint, and excluded from exported backups.
 
 ## Scripts
 
