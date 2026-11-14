@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   Bell,
@@ -23,6 +23,7 @@ import {
   todayISO,
   type AppSettings,
 } from '../lib/db'
+import { APP_VERSION, PRIVACY_POLICY_PATH } from '../lib/appInfo'
 import { useInstallPrompt, useSettings } from '../lib/hooks'
 import { getAiStatus, type AiStatus } from '../lib/ai'
 import { loadDemoData } from '../lib/demo'
@@ -446,7 +447,15 @@ export function SettingsPage() {
             The Android version is packaged as a Trusted Web Activity (TWA) so the same codebase ships to the Play Store. TWA setup
             instructions are in the project README.
           </p>
-          <p className="mt-3 text-[11px] text-muted/70">Version 0.1.0 · Made for homeowners and renters.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted/70">
+            <span>Version {APP_VERSION} · Made for homeowners and renters.</span>
+            <Link to="/about" className="font-medium text-brand hover:text-brand-dark">
+              About
+            </Link>
+            <a href={PRIVACY_POLICY_PATH} className="font-medium text-brand hover:text-brand-dark">
+              Privacy policy
+            </a>
+          </div>
         </Card>
       </div>
 

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index, follow" />
+    <meta
+      name="description"
+      content="HouseSphere privacy policy: how the local-first home management app handles your data, AI requests, permissions and deletion."
+    />
+    <title>Privacy Policy — HouseSphere</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --brand: #0f766e;
+        --brand-dark: #0b3d38;
+        --ink: #1f2933;
+        --muted: #52606d;
+        --line: #e2ddd2;
+        --cream: #f4f2ec;
+        --surface: #fffdf8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--cream);
+        color: var(--ink);
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.65;
+        -webkit-text-size-adjust: 100%;
+      }
+      a {
+        color: var(--brand);
+      }
+      header {
+        background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+        color: #fff;
+        padding: 2.5rem 1.25rem 2.75rem;
+      }
+      .wrap {
+        max-width: 46rem;
+        margin: 0 auto;
+      }
+      header .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        text-decoration: none;
+        color: #fff;
+      }
+      header img {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: #fff;
+      }
+      header h1 {
+        margin: 1.5rem 0 0.35rem;
+        font-size: 1.9rem;
+        letter-spacing: -0.02em;
+      }
+      header p {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.85rem;
+      }
+      main {
+        max-width: 46rem;
+        margin: -1.5rem auto 0;
+        padding: 0 1.25rem 3.5rem;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 10px 30px -20px rgba(15, 118, 110, 0.5);
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin: 2rem 0 0.5rem;
+        letter-spacing: -0.01em;
+      }
+      h2:first-of-type {
+        margin-top: 0;
+      }
+      p,
+      li {
+        color: var(--muted);
+        font-size: 0.925rem;
+      }
+      ul {
+        margin: 0.5rem 0;
+        padding-left: 1.2rem;
+      }
+      li + li {
+        margin-top: 0.35rem;
+      }
+      .summary {
+        display: grid;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+      .summary div {
+        border-left: 3px solid var(--brand);
+        padding-left: 0.85rem;
+      }
+      .summary strong {
+        display: block;
+        color: var(--ink);
+        font-size: 0.9rem;
+      }
+      .summary span {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      .note {
+        background: #f0faf8;
+        border: 1px solid #cdeae4;
+        border-radius: 0.75rem;
+        padding: 0.85rem 1rem;
+        color: var(--brand-dark);
+        font-size: 0.85rem;
+        margin: 0.75rem 0 0;
+      }
+      footer {
+        margin-top: 2rem;
+        border-top: 1px solid var(--line);
+        padding-top: 1.25rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      footer a {
+        color: var(--brand);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <a class="brand" href="/">
+          <img src="/icons/icon-192.png" alt="HouseSphere" />
+          <span>HouseSphere</span>
+        </a>
+        <h1>Privacy Policy</h1>
+        <p>Last updated: 14 November 2026</p>
+      </div>
+    </header>
+
+    <main>
+      <div class="card">
+        <div class="summary">
+          <div>
+            <strong>Your household data stays on your device</strong>
+            <span>Inventory, photos, receipts, documents, expenses and bills are stored locally in your browser’s IndexedDB.</span>
+          </div>
+          <div>
+            <strong>No account, no cloud database</strong>
+            <span>HouseSphere does not require sign-up and does not sync your data to a server we operate.</span>
+          </div>
+          <div>
+            <strong>AI features are optional</strong>
+            <span>The assistant and scanning send content to the configured AI provider only when you choose to use them.</span>
+          </div>
+          <div>
+            <strong>No tracking or advertising</strong>
+            <span>There are no analytics or ad SDKs, and we do not sell or share your household data.</span>
+          </div>
+        </div>
+
+        <h2>1. Who we are</h2>
+        <p>
+          HouseSphere (“the app”, “we”, “us”) is a household management application available as a website, an installable
+          progressive web app (PWA) and an Android app delivered through a Trusted Web Activity (TWA). This policy explains how the
+          app handles information when you use it.
+        </p>
+
+        <h2>2. Information stored on your device</h2>
+        <p>
+          The information you enter — such as rooms, inventory items, photos, receipts, warranty dates, maintenance tasks, projects,
+          documents, expenses, bills, service providers and assistant chat history — is stored in your device’s browser storage
+          (IndexedDB and local storage). This data is not uploaded to a HouseSphere database, because HouseSphere does not operate
+          one.
+        </p>
+        <p>
+          Because the data lives on your device, it may be lost if you clear your browser data, reset the app or lose the device.
+          Use the backup tools in Settings to export a copy you control.
+        </p>
+
+        <h2>3. AI assistant and photo scanning</h2>
+        <p>
+          The AI assistant and scanning features are optional. When you ask a question or scan a label, receipt, bill or document,
+          the text and/or image you provide is sent to the app’s serverless API endpoint and forwarded to the AI provider configured
+          for the deployment — currently Google Gemini or OpenAI — solely to generate a response or extract details.
+        </p>
+        <ul>
+          <li>API keys are stored server-side and are never exposed to your browser.</li>
+          <li>HouseSphere does not store your AI requests or images after the request completes.</li>
+          <li>The AI provider may process requests under its own terms and privacy policy.</li>
+          <li>Only use scanning with documents you are comfortable sending to the AI provider.</li>
+        </ul>
+        <p>
+          Provider policies:
+          <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Google Privacy Policy</a> and
+          <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noreferrer">OpenAI Privacy Policy</a>.
+        </p>
+
+        <h2>4. Hosting and technical logs</h2>
+        <p>
+          The web version is hosted on Vercel. Like most hosting providers, Vercel may process standard technical information such as
+          IP address, browser type, requested URL and timestamps in order to deliver and secure the service. This information is used
+          for hosting and security purposes and is not used by HouseSphere for advertising or profiling.
+        </p>
+
+        <h2>5. Backups and exports</h2>
+        <p>
+          When you export a backup, HouseSphere creates a JSON file on your device containing your app data, including photos and
+          documents. You choose where to store or share that file. Keep backups somewhere safe, as they are not encrypted by the app.
+        </p>
+
+        <h2>6. Permissions</h2>
+        <ul>
+          <li><strong>Camera / photos:</strong> requested only when you choose to take or upload a photo.</li>
+          <li><strong>Notifications:</strong> optional, used for local reminders about maintenance, bills and warranties.</li>
+          <li><strong>No location, contacts, microphone or background tracking</strong> is used by the app.</li>
+        </ul>
+
+        <h2>7. Data retention and deletion</h2>
+        <p>
+          Your data remains on your device until you delete it. You can delete individual records in the app, or use
+          <strong> Settings → Clear all data</strong> to erase everything stored on the device. Uninstalling the app or clearing your
+          browser storage also removes the local data. AI requests are transient and are not retained by HouseSphere.
+        </p>
+
+        <h2>8. No sale or sharing of household data</h2>
+        <p>
+          We do not sell, rent or trade your household data. We do not use your data for advertising. The only third parties involved
+          are the hosting provider (Vercel) and the AI provider you invoke when using the assistant or scanning.
+        </p>
+
+        <h2>9. Children’s privacy</h2>
+        <p>
+          HouseSphere is intended for adults managing a household and is not directed to children under 13. We do not knowingly
+          collect personal information from children.
+        </p>
+
+        <h2>10. Changes to this policy</h2>
+        <p>
+          We may update this policy to reflect changes to the app or legal requirements. When we do, we will update the “last updated”
+          date at the top of this page. Continued use of the app after an update means you accept the revised policy.
+        </p>
+
+        <h2>11. Contact</h2>
+        <p>
+          Questions about this policy or your data can be raised through the HouseSphere project page:
+          <a href="https://github.com/KenKanfix/housesphere/issues" target="_blank" rel="noreferrer">
+            github.com/KenKanfix/housesphere/issues
+          </a>.
+        </p>
+
+        <p class="note">
+          This policy applies to the HouseSphere website, progressive web app and the Android app. The same local-first practices
+          apply in the mobile versions.
+        </p>
+      </div>
+
+      <footer>
+        <a href="/">← Back to HouseSphere</a>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -4,6 +4,7 @@ import {
   ChevronRight,
   FileText,
   Hammer,
+  Info,
   Package,
   Repeat,
   Settings,
@@ -164,6 +165,19 @@ export function More() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-ink">Settings</p>
               <p className="text-xs text-muted">Household, reminders, backups and install</p>
+            </div>
+            <ChevronRight className="size-5 shrink-0 text-muted" />
+          </Card>
+        </Link>
+
+        <Link to="/about">
+          <Card className="flex h-full items-center gap-3.5 p-5 transition-colors hover:border-brand/30 hover:bg-brand-soft/20">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-black/5 text-muted">
+              <Info className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">About &amp; privacy</p>
+              <p className="text-xs text-muted">How HouseSphere handles your data</p>
             </div>
             <ChevronRight className="size-5 shrink-0 text-muted" />
           </Card>

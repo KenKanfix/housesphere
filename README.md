@@ -211,6 +211,14 @@ vercel.json          SPA rewrites and headers
 - Currency defaults to AUD and can be changed in **Settings**.
 - Notifications are local only and require OS/browser permission.
 
+## Privacy
+
+HouseSphere is local-first: household data is stored in IndexedDB on the device and is not uploaded to a HouseSphere database. The optional AI assistant/scanning forwards requests to the configured provider.
+
+- Public policy: **https://housesphere.vercel.app/privacy** (also served at `/privacy.html` from `public/privacy.html`)
+- Use that URL for the Play Store and App Store privacy policy fields.
+- The in-app **About** page (`/about`) summarises the policy and links to the full page.
+
 ## Troubleshooting
 
 - **Address bar visible in the Android app** — asset links are missing, unreachable, use the wrong package ID or the wrong signing fingerprint. Re-deploy and re-test.

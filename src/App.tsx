@@ -15,6 +15,7 @@ const Providers = lazy(() => import('./pages/Providers').then((module) => ({ def
 const Assistant = lazy(() => import('./pages/Assistant').then((module) => ({ default: module.Assistant })))
 const SettingsPage = lazy(() => import('./pages/Settings').then((module) => ({ default: module.SettingsPage })))
 const More = lazy(() => import('./pages/More').then((module) => ({ default: module.More })))
+const About = lazy(() => import('./pages/About').then((module) => ({ default: module.About })))
 const NotFound = lazy(() => import('./pages/NotFound').then((module) => ({ default: module.NotFound })))
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="providers" element={<Providers />} />
             <Route path="assistant" element={<Assistant />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="about" element={<About />} />
             <Route path="more" element={<More />} />
             <Route path="*" element={<NotFound />} />
           </Route>

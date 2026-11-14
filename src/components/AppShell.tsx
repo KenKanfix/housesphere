@@ -1,10 +1,12 @@
-import { Suspense } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import clsx from 'clsx'
 import {
   Hammer,
   Home,
+  Info,
   LayoutGrid,
+  Menu,
   Package,
   Repeat,
   Settings,
@@ -15,6 +17,7 @@ import {
   WifiOff,
   Wrench,
   FileText,
+  X,
 } from 'lucide-react'
 import { useOnlineStatus } from '../lib/hooks'
 
@@ -99,6 +102,26 @@ function NavItem({
 
 export function AppShell() {
   const online = useOnlineStatus()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const closeOnPointer = (event: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false)
+    }
+    const closeOnKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', closeOnPointer)
+    document.addEventListener('touchstart', closeOnPointer)
+    document.addEventListener('keydown', closeOnKey)
+    return () => {
+      document.removeEventListener('mousedown', closeOnPointer)
+      document.removeEventListener('touchstart', closeOnPointer)
+      document.removeEventListener('keydown', closeOnKey)
+    }
+  }, [menuOpen])
 
   return (
     <div className="min-h-svh">
@@ -128,6 +151,7 @@ export function AppShell() {
 
         <div className="border-t border-line p-3">
           <NavItem to="/settings" label="Settings" icon={Settings} />
+          <NavItem to="/about" label="About & privacy" icon={Info} />
           <div className="mt-2 flex items-center gap-2 px-3 py-1 text-[11px] text-muted">
             {online ? (
               <>
@@ -153,24 +177,45 @@ export function AppShell() {
               <p className="text-[10px] leading-tight text-muted">Your home, in one place</p>
             </div>
           </Link>
-          <div className="flex items-center gap-1">
+          <div ref={menuRef} className="relative flex items-center gap-1">
             {!online ? (
               <span className="mr-1 inline-flex items-center gap-1 rounded-full bg-amber-soft px-2 py-1 text-[10px] font-semibold text-amber">
                 <WifiOff className="size-3" /> Offline
               </span>
             ) : null}
-            <NavLink
-              to="/settings"
-              aria-label="Settings"
-              className={({ isActive }) =>
-                clsx(
-                  'inline-flex size-9 items-center justify-center rounded-full text-muted',
-                  isActive ? 'bg-brand-soft text-brand-dark' : 'hover:bg-black/5',
-                )
-              }
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              className="inline-flex size-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-black/5"
             >
-              <Settings className="size-5" />
-            </NavLink>
+              {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            </button>
+            {menuOpen ? (
+              <div
+                role="menu"
+                className="absolute right-0 top-11 z-50 w-52 overflow-hidden rounded-xl border border-line bg-surface shadow-lg shadow-black/5"
+              >
+                <Link
+                  to="/settings"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-3 text-sm font-medium text-ink transition-colors hover:bg-brand-soft/40"
+                >
+                  <Settings className="size-4 text-muted" /> Settings
+                </Link>
+                <Link
+                  to="/about"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2.5 border-t border-line px-4 py-3 text-sm font-medium text-ink transition-colors hover:bg-brand-soft/40"
+                >
+                  <Info className="size-4 text-muted" /> About &amp; privacy
+                </Link>
+              </div>
+            ) : null}
           </div>
         </header>
 
