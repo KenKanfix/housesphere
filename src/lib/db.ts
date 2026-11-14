@@ -31,9 +31,21 @@ export interface Item {
   purchaseDate?: string
   price?: number
   photo?: string
+  receipt?: string
+  warrantyExpiry?: string
+  extendedWarrantyProvider?: string
+  extendedWarrantyExpiry?: string
+  extendedWarrantyCost?: number
+  extendedWarrantyNotes?: string
   notes?: string
   createdAt: number
   updatedAt: number
+}
+
+export function latestWarrantyExpiry(item: Item): string | undefined {
+  const dates = [item.warrantyExpiry, item.extendedWarrantyExpiry].filter((date): date is string => Boolean(date))
+  if (dates.length === 0) return undefined
+  return dates.reduce((latest, date) => (date > latest ? date : latest))
 }
 
 export interface Warranty {

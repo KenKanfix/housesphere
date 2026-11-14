@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Package, Pencil, Plus, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
+import { Package, Pencil, Plus, ReceiptText, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import {
   categoryLabel,
   db,
   daysUntil,
   formatMoney,
   ITEM_CATEGORIES,
+  latestWarrantyExpiry,
   now,
   uid,
   type Item,
@@ -45,6 +46,7 @@ export function Inventory() {
   const [busy, setBusy] = useState(false)
   const [showRoom, setShowRoom] = useState(false)
   const [roomName, setRoomName] = useState('')
+  const [viewingReceipt, setViewingReceipt] = useState<Item | null>(null)
 
   const items = useLiveQuery(() => db.items.orderBy('name').toArray(), []) ?? []
   const rooms = useLiveQuery(() => db.rooms.orderBy('name').toArray(), []) ?? []
@@ -60,10 +62,12 @@ export function Inventory() {
 
   const roomNameFor = (id: string) => rooms.find((room) => room.id === id)?.name ?? 'Unassigned'
 
-  const nextWarranty = (itemId: string) =>
-    warranties
-      .filter((warranty) => warranty.itemId === itemId)
-      .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))[0]
+  const warrantyEnd = (item: Item) => {
+    const linked = warranties.filter((warranty) => warranty.itemId === item.id).map((warranty) => warranty.expiryDate)
+    const dates = [...linked, latestWarrantyExpiry(item)].filter((date): date is string => Boolean(date))
+    if (dates.length === 0) return undefined
+    return dates.reduce((latest, date) => (date > latest ? date : latest))
+  }
 
   const query = search.trim().toLowerCase()
   const filtered = items.filter((item) => {
@@ -209,8 +213,8 @@ export function Inventory() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((item) => {
-            const warranty = nextWarranty(item.id)
-            const days = warranty ? daysUntil(warranty.expiryDate) : null
+            const warrantyDate = warrantyEnd(item)
+            const days = warrantyDate ? daysUntil(warrantyDate) : undefined
             return (
               <Card key={item.id} className="flex flex-col overflow-hidden">
                 <div className="relative aspect-[16/10] bg-brand-soft/50">
@@ -221,7 +225,7 @@ export function Inventory() {
                       <Package className="size-9" />
                     </div>
                   )}
-                  {warranty ? (
+                  {warrantyDate ? (
                     <div className="absolute left-3 top-3">
                       <Badge tone={days! < 0 ? 'danger' : days! <= 30 ? 'amber' : 'ok'}>
                         {days! < 0 ? (
@@ -256,12 +260,24 @@ export function Inventory() {
                     </p>
                   ) : null}
                   {item.serial ? <p className="truncate text-[11px] text-muted/80">S/N {item.serial}</p> : null}
+                  {item.warrantyExpiry || item.extendedWarrantyExpiry ? (
+                    <p className="truncate text-[11px] text-muted/80">
+                      {[item.warrantyExpiry ? `Warranty to ${item.warrantyExpiry}` : '', item.extendedWarrantyExpiry ? `extended to ${item.extendedWarrantyExpiry}` : '']
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  ) : null}
 
                   <div className="mt-auto flex items-center justify-between pt-3">
                     <span className="text-[11px] text-muted">
                       {item.purchaseDate ? `Bought ${item.purchaseDate}` : 'No purchase date'}
                     </span>
                     <div className="flex items-center gap-0.5">
+                      {item.receipt ? (
+                        <IconButton label={`View receipt for ${item.name}`} onClick={() => setViewingReceipt(item)}>
+                          <ReceiptText className="size-4" />
+                        </IconButton>
+                      ) : null}
                       <IconButton
                         label={`Edit ${item.name}`}
                         onClick={() => {
@@ -315,6 +331,17 @@ export function Inventory() {
             Existing rooms: {rooms.map((room) => room.name).join(', ')}
           </p>
         </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(viewingReceipt)}
+        onClose={() => setViewingReceipt(null)}
+        title={viewingReceipt ? `${viewingReceipt.name} receipt` : 'Receipt'}
+        size="lg"
+      >
+        {viewingReceipt?.receipt ? (
+          <img src={viewingReceipt.receipt} alt="Receipt" className="w-full rounded-lg border border-line" />
+        ) : null}
       </Modal>
 
       <ConfirmDialog

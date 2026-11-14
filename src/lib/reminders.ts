@@ -10,11 +10,12 @@ export interface Reminder {
 }
 
 export async function getDueReminders(): Promise<Reminder[]> {
-  const [tasks, warranties, documents, bills] = await Promise.all([
+  const [tasks, warranties, documents, bills, items] = await Promise.all([
     db.maintenance.toArray(),
     db.warranties.toArray(),
     db.documents.toArray(),
     db.bills.toArray(),
+    db.items.toArray(),
   ])
 
   const reminders: Reminder[] = []
@@ -30,6 +31,16 @@ export async function getDueReminders(): Promise<Reminder[]> {
   for (const warranty of warranties) {
     const days = daysUntil(warranty.expiryDate)
     if (days <= 30) reminders.push({ title: warranty.title, date: warranty.expiryDate, kind: 'warranty', days })
+  }
+  for (const item of items) {
+    for (const [label, date] of [
+      ['warranty', item.warrantyExpiry],
+      ['extended warranty', item.extendedWarrantyExpiry],
+    ] as const) {
+      if (!date) continue
+      const days = daysUntil(date)
+      if (days <= 30) reminders.push({ title: `${item.name} ${label}`, date, kind: 'warranty', days })
+    }
   }
   for (const document of documents) {
     if (!document.expiryDate) continue
