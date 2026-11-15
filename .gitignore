@@ -35,3 +35,6 @@ keystore-passwords.txt
 *.sw?
 
 .vercel
+
+# Store upload packages
+release/
