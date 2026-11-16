@@ -175,7 +175,7 @@ export function Expenses() {
           ) : (
             <Card className="divide-y divide-line overflow-hidden">
               {filtered.map((expense) => (
-                <div key={expense.id} className="flex items-center gap-3 px-4 py-3.5">
+                <div key={expense.id} className="flex flex-wrap items-center gap-3 px-4 py-3.5 sm:flex-nowrap">
                   <div className="flex w-11 shrink-0 flex-col items-center rounded-lg border border-line bg-cream px-1 py-1.5">
                     <span className="text-sm font-semibold leading-none text-ink">{expense.date.slice(8, 10)}</span>
                     <span className="mt-0.5 text-[10px] uppercase leading-none text-muted">
@@ -189,23 +189,25 @@ export function Expenses() {
                     </div>
                     <p className="truncate text-xs text-muted">
                       {expense.description || 'No description'}
-                      {projectName(expense.projectId) ? ` · ${projectName(expense.projectId)}` : ''}
+                      {projectName(expense.projectId) ? ` A� ${projectName(expense.projectId)}` : ''}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex w-full items-center justify-between gap-1 pl-14 sm:w-auto sm:shrink-0 sm:justify-end sm:pl-0">
                     <span className="text-sm font-semibold text-ink">{formatMoney(expense.amount, settings.currency)}</span>
-                    <IconButton
-                      label="Edit expense"
-                      onClick={() => {
-                        setEditing(expense)
-                        setShowForm(true)
-                      }}
-                    >
-                      <Pencil className="size-4" />
-                    </IconButton>
-                    <IconButton label="Delete expense" onClick={() => setDeleting(expense)} className="hover:text-danger">
-                      <Trash2 className="size-4" />
-                    </IconButton>
+                    <div className="flex items-center gap-0.5">
+                      <IconButton
+                        label="Edit expense"
+                        onClick={() => {
+                          setEditing(expense)
+                          setShowForm(true)
+                        }}
+                      >
+                        <Pencil className="size-4" />
+                      </IconButton>
+                      <IconButton label="Delete expense" onClick={() => setDeleting(expense)} className="hover:text-danger">
+                        <Trash2 className="size-4" />
+                      </IconButton>
+                    </div>
                   </div>
                 </div>
               ))}

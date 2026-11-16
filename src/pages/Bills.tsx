@@ -176,7 +176,7 @@ export function Bills() {
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
           {sorted.map((bill) => (
-            <div key={bill.id} className="flex items-center gap-3 px-4 py-3.5">
+            <div key={bill.id} className="flex flex-wrap items-center gap-3 px-4 py-3.5 sm:flex-nowrap">
               <div className="flex w-11 shrink-0 flex-col items-center rounded-lg border border-line bg-cream px-1 py-1.5">
                 <span className="text-sm font-semibold leading-none text-ink">{bill.nextDue.slice(8, 10)}</span>
                 <span className="mt-0.5 text-[10px] uppercase leading-none text-muted">
@@ -201,13 +201,13 @@ export function Bills() {
                 </div>
                 <p className="truncate text-xs text-muted">
                   {billFrequencyLabel(bill.frequencyDays)}
-                  {bill.provider ? ` · ${bill.provider}` : ''}
-                  {bill.lastPaid ? ` · last paid ${bill.lastPaid}` : ''}
+                  {bill.provider ? ` A� ${bill.provider}` : ''}
+                  {bill.lastPaid ? ` A� last paid ${bill.lastPaid}` : ''}
                 </p>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <div className="flex w-full items-center justify-between gap-2 pl-14 sm:w-auto sm:shrink-0 sm:flex-col sm:items-end sm:justify-start sm:gap-1.5 sm:pl-0">
                 <span className="text-sm font-semibold text-ink">
-                  {bill.amount !== undefined ? formatMoney(bill.amount, settings.currency) : '—'}
+                  {bill.amount !== undefined ? formatMoney(bill.amount, settings.currency) : '�?"'}
                 </span>
                 <div className="flex items-center gap-0.5">
                   <Button
