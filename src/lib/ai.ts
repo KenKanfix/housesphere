@@ -1,5 +1,7 @@
 import type { ChatMessage } from '../../server/aiHandler'
 import { db, todayISO } from './db'
+import { getDailyAiLimit } from './entitlement'
+import { getAppUserId } from './userId'
 
 export type AiProvider = 'gemini' | 'openai'
 export type AiMode = 'app' | 'own'
@@ -12,7 +14,6 @@ export interface AiStatus {
 
 export type ScanKind = 'label' | 'receipt' | 'manual' | 'bill'
 
-export const AI_DAILY_LIMIT = 3
 const AI_USAGE_KEY = 'housesphere:ai-usage'
 
 export interface AiUsage {
@@ -36,20 +37,31 @@ interface AiTicket {
   track: () => void
 }
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+
+function apiUrl(path: string): string {
+  return API_BASE ? `${API_BASE}${path}` : path
+}
+
+function requestHeaders(): Record<string, string> {
+  return { 'Content-Type': 'application/json', 'X-User-Id': getAppUserId() }
+}
+
 function readUsage(): AiUsage {
+  const limit = getDailyAiLimit()
   if (typeof localStorage === 'undefined') {
-    return { used: 0, limit: AI_DAILY_LIMIT, remaining: AI_DAILY_LIMIT }
+    return { used: 0, limit, remaining: limit }
   }
   try {
     const raw = JSON.parse(localStorage.getItem(AI_USAGE_KEY) ?? 'null') as { date?: string; count?: number } | null
     if (raw?.date === todayISO() && typeof raw.count === 'number' && raw.count >= 0) {
-      const used = Math.min(raw.count, AI_DAILY_LIMIT)
-      return { used, limit: AI_DAILY_LIMIT, remaining: Math.max(0, AI_DAILY_LIMIT - used) }
+      const used = Math.min(raw.count, limit)
+      return { used, limit, remaining: Math.max(0, limit - used) }
     }
   } catch {
     // Ignore malformed usage records.
   }
-  return { used: 0, limit: AI_DAILY_LIMIT, remaining: AI_DAILY_LIMIT }
+  return { used: 0, limit, remaining: limit }
 }
 
 export function getAiUsage(): AiUsage {
@@ -100,7 +112,7 @@ async function beginAiAction(): Promise<AiTicket> {
 
   if (setup.usage.remaining <= 0) {
     throw new Error(
-      `You have used today's ${setup.usage.limit} free AI actions. Try again tomorrow, or add your own API key in Settings.`,
+      `You have used today's ${setup.usage.limit} AI actions. Upgrade to Pro for 10 a day, or add your own API key in Settings.`,
     )
   }
 
@@ -119,7 +131,7 @@ async function parseResponse(response: Response): Promise<Record<string, unknown
 
 export async function getAiStatus(): Promise<AiStatus> {
   try {
-    const response = await fetch('/api/ai')
+    const response = await fetch(apiUrl('/api/ai'))
     if (!response.ok) return { configured: false }
     const body = (await response.json()) as AiStatus
     return { configured: Boolean(body.configured), model: body.model, provider: body.provider }
@@ -130,9 +142,9 @@ export async function getAiStatus(): Promise<AiStatus> {
 
 export async function askAi(messages: ChatMessage[], context: string): Promise<string> {
   const ticket = await beginAiAction()
-  const response = await fetch('/api/ai', {
+  const response = await fetch(apiUrl('/api/ai'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: requestHeaders(),
     body: JSON.stringify({ mode: 'chat', messages, context, ...ticket.payload }),
   })
   const body = await parseResponse(response)
@@ -143,9 +155,9 @@ export async function askAi(messages: ChatMessage[], context: string): Promise<s
 
 export async function scanImage(kind: ScanKind, images: string[]): Promise<Record<string, unknown>> {
   const ticket = await beginAiAction()
-  const response = await fetch('/api/ai', {
+  const response = await fetch(apiUrl('/api/ai'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: requestHeaders(),
     body: JSON.stringify({ mode: 'scan', kind, images, ...ticket.payload }),
   })
   const body = await parseResponse(response)

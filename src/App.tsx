@@ -1,7 +1,8 @@
-import { lazy } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { lazy, useEffect } from 'react'
+import { HashRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/Toast'
+import { configurePurchases } from './billing/revenuecat'
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((module) => ({ default: module.Dashboard })))
 const Inventory = lazy(() => import('./pages/Inventory').then((module) => ({ default: module.Inventory })))
@@ -19,9 +20,13 @@ const About = lazy(() => import('./pages/About').then((module) => ({ default: mo
 const NotFound = lazy(() => import('./pages/NotFound').then((module) => ({ default: module.NotFound })))
 
 export default function App() {
+  useEffect(() => {
+    void configurePurchases()
+  }, [])
+
   return (
     <ToastProvider>
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<Dashboard />} />
@@ -40,7 +45,7 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </ToastProvider>
   )
 }

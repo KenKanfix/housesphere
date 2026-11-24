@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type AppSettings } from './db'
+import { ENTITLEMENT_EVENT, isPro } from './entitlement'
+import { getAiUsage, type AiUsage } from './ai'
 
 const FALLBACK_SETTINGS: AppSettings = {
   id: 'app',
@@ -17,6 +19,51 @@ const FALLBACK_SETTINGS: AppSettings = {
 export function useSettings(): AppSettings {
   const settings = useLiveQuery(() => db.settings.get('app'), [])
   return settings ?? FALLBACK_SETTINGS
+}
+
+export function usePro(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener(ENTITLEMENT_EVENT, onChange)
+      window.addEventListener('focus', onChange)
+      return () => {
+        window.removeEventListener(ENTITLEMENT_EVENT, onChange)
+        window.removeEventListener('focus', onChange)
+      }
+    },
+    isPro,
+    isPro,
+  )
+}
+
+let cachedUsageJson = ''
+let cachedUsage: AiUsage = getAiUsage()
+
+function usageSnapshot(): AiUsage {
+  const next = getAiUsage()
+  const serialized = JSON.stringify(next)
+  if (serialized !== cachedUsageJson) {
+    cachedUsageJson = serialized
+    cachedUsage = next
+  }
+  return cachedUsage
+}
+
+export function useAiUsage(): AiUsage {
+  return useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener(ENTITLEMENT_EVENT, onChange)
+      window.addEventListener('focus', onChange)
+      window.addEventListener('storage', onChange)
+      return () => {
+        window.removeEventListener(ENTITLEMENT_EVENT, onChange)
+        window.removeEventListener('focus', onChange)
+        window.removeEventListener('storage', onChange)
+      }
+    },
+    usageSnapshot,
+    usageSnapshot,
+  )
 }
 
 interface BeforeInstallPromptEvent extends Event {

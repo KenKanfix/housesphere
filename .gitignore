@@ -12,10 +12,13 @@ dist
 dist-ssr
 *.local
 
-# Android / TWA
+# Capacitor native projects
 android/
+ios/App/App/public/
+keystore/
 *.keystore
 *.jks
+android/keystore.properties
 keystore-passwords.txt
 
 # Local environment

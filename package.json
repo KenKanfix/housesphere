@@ -9,10 +9,19 @@
     "typecheck": "tsc -b",
     "lint": "oxlint",
     "preview": "vite preview",
-    "android:init": "node scripts/prepare-twa.mjs",
-    "android:build": "cd android && bubblewrap build --skipPwaValidation"
+    "cap:sync": "npm run build && cap sync",
+    "cap:android": "npm run cap:sync && cap open android",
+    "cap:ios": "npm run cap:sync && cap open ios",
+    "android:build": "npm run cap:sync && cap build android",
+    "ios:build": "npm run cap:sync && cap build ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/ios": "^8.6.2",
+    "@capacitor/share": "^8.0.3",
+    "@revenuecat/purchases-capacitor": "^13.8.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "dexie": "^4.4.7",
@@ -23,6 +32,7 @@
     "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",

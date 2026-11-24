@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import {
   Bell,
   CheckCircle2,
+  Crown,
   Database,
   DatabaseBackup,
   Download,
@@ -23,10 +24,28 @@ import {
   todayISO,
   type AppSettings,
 } from '../lib/db'
-import { APP_VERSION, PRIVACY_POLICY_PATH } from '../lib/appInfo'
-import { useInstallPrompt, useSettings } from '../lib/hooks'
-import { getAiStatus, getAiUsage, type AiStatus, type AiUsage } from '../lib/ai'
+import { APP_VERSION, PRIVACY_POLICY_PATH, TERMS_POLICY_PATH } from '../lib/appInfo'
+import { useAiUsage, useInstallPrompt, usePro, useSettings } from '../lib/hooks'
+import { getAiStatus, type AiStatus } from '../lib/ai'
+import { FREE_AI_DAILY_LIMIT, PRO_AI_DAILY_LIMIT, PRO_MONTHLY_PRICE } from '../lib/pricing'
+import { billingEnabled, restorePurchasesBilling } from '../billing/revenuecat'
+import { Paywall } from '../components/Paywall'
 import { loadDemoData } from '../lib/demo'
+import {
+  clearBackupFolder,
+  folderPickerAvailable,
+  getBackupFolder,
+  pickBackupFolder,
+  writeBackupToFolder,
+  type BackupFolder,
+} from '../lib/backupLocation'
+import {
+  getNativeBackupFolder,
+  nativeBackupsAvailable,
+  saveBackupNative,
+  setNativeBackupFolder,
+  shareBackupNative,
+} from '../lib/nativeBackup'
 import { requestNotificationPermission } from '../lib/reminders'
 import { useToast } from '../components/toastContext'
 import {
@@ -169,13 +188,14 @@ function AiSettingsCard({ settings }: { settings: AppSettings }) {
   const toast = useToast()
   const navigate = useNavigate()
   const [status, setStatus] = useState<AiStatus | null>(null)
-  const [aiUsage, setAiUsage] = useState<AiUsage>(() => getAiUsage())
+  const aiUsage = useAiUsage()
   const [keyInput, setKeyInput] = useState('')
   const [model, setModel] = useState(settings.aiModel ?? '')
   const [provider, setProvider] = useState<'gemini' | 'openai'>(
     settings.aiProvider === 'openai' ? 'openai' : 'gemini',
   )
   const [saving, setSaving] = useState(false)
+  const pro = usePro()
 
   const enabled = settings.aiEnabled ?? false
   const mode = settings.aiMode === 'own' ? 'own' : 'app'
@@ -187,7 +207,6 @@ function AiSettingsCard({ settings }: { settings: AppSettings }) {
 
   const refresh = () => {
     void getAiStatus().then(setStatus)
-    setAiUsage(getAiUsage())
   }
 
   const update = async (patch: Partial<AppSettings>, message?: string) => {
@@ -215,7 +234,6 @@ function AiSettingsCard({ settings }: { settings: AppSettings }) {
       }
       await db.settings.update('app', patch)
       setKeyInput('')
-      setAiUsage(getAiUsage())
       toast(key ? 'Your API key is saved on this device' : 'AI settings saved')
     } catch {
       toast('Could not save your AI settings', 'error')
@@ -294,7 +312,9 @@ function AiSettingsCard({ settings }: { settings: AppSettings }) {
           }`}
         >
           <p className="text-sm font-semibold text-ink">HouseSphere AI</p>
-          <p className="mt-1 text-[11px] text-muted">Shared key · 3 free actions per day</p>
+          <p className="mt-1 text-[11px] text-muted">
+            Shared key · {pro ? PRO_AI_DAILY_LIMIT : FREE_AI_DAILY_LIMIT} actions per day
+          </p>
         </button>
         <button
           type="button"
@@ -312,7 +332,7 @@ function AiSettingsCard({ settings }: { settings: AppSettings }) {
         <div className="mt-3 rounded-xl bg-cream px-3.5 py-3 text-xs text-muted">
           {serverReady ? (
             <p>
-              {aiUsage.remaining} of {aiUsage.limit} free AI actions left today. The counter resets at local midnight on this device.
+              {aiUsage.remaining} of {aiUsage.limit} {pro ? 'Pro' : 'free'} AI actions left today. The counter resets at local midnight on this device.
             </p>
           ) : (
             <p>
@@ -322,7 +342,9 @@ function AiSettingsCard({ settings }: { settings: AppSettings }) {
             </p>
           )}
           {aiUsage.remaining <= 0 ? (
-            <p className="mt-1 font-medium text-amber">Today&apos;s free actions are used up. Switch to your own key for unlimited use.</p>
+            <p className="mt-1 font-medium text-amber">
+              Today&apos;s actions are used up. Upgrade to Pro for {PRO_AI_DAILY_LIMIT} a day, or switch to your own key for unlimited use.
+            </p>
           ) : null}
         </div>
       ) : (
@@ -386,6 +408,54 @@ function AiSettingsCard({ settings }: { settings: AppSettings }) {
   )
 }
 
+function ProCard() {
+  const toast = useToast()
+  const pro = usePro()
+  const [paywall, setPaywall] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+
+  const restore = async () => {
+    setRestoring(true)
+    const result = await restorePurchasesBilling()
+    setRestoring(false)
+    if (result.message) toast(result.message, result.ok ? 'success' : 'error')
+  }
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+            <Crown className="size-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-ink">{pro ? 'HouseSphere Pro' : 'Upgrade to Pro'}</h2>
+            <p className="mt-0.5 max-w-md text-xs text-muted">
+              {pro
+                ? `Pro is active — ${PRO_AI_DAILY_LIMIT} AI actions a day. Thank you for supporting HouseSphere.`
+                : `Scan more receipts and invoices with ${PRO_AI_DAILY_LIMIT} AI actions a day for US$${PRO_MONTHLY_PRICE.toFixed(2)}/month.`}
+            </p>
+          </div>
+        </div>
+        <Badge tone={pro ? 'ok' : 'amber'}>{pro ? 'Active' : 'Free plan'}</Badge>
+      </div>
+      {billingEnabled() ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {!pro ? <Button size="sm" onClick={() => setPaywall(true)}>See plans</Button> : null}
+          <Button size="sm" variant="secondary" onClick={() => void restore()} loading={restoring}>
+            Restore purchases
+          </Button>
+        </div>
+      ) : (
+        <p className="mt-3 text-[11px] text-muted/80">
+          Subscriptions are available in the mobile app. In a browser you can still use your own AI key for unlimited actions.
+        </p>
+      )}
+      {paywall ? <Paywall onClose={() => setPaywall(false)} /> : null}
+    </Card>
+  )
+}
+
 export function SettingsPage() {
   const toast = useToast()
   const settings = useSettings()
@@ -395,6 +465,9 @@ export function SettingsPage() {
   const [confirmClear, setConfirmClear] = useState(false)
   const [importing, setImporting] = useState(false)
   const [busyAction, setBusyAction] = useState('')
+  const [backupFolder, setBackupFolder] = useState<BackupFolder | null>(null)
+  const [nativeFolder, setNativeFolder] = useState(getNativeBackupFolder)
+  const [lastBackup, setLastBackup] = useState<{ filename: string; uri: string } | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
 
   const counts = useLiveQuery(
@@ -413,9 +486,40 @@ export function SettingsPage() {
     }
   }
 
+  const loadBackupLocation = () => {
+    void getBackupFolder().then(setBackupFolder)
+  }
+
   useEffect(() => {
     estimateStorage()
+    loadBackupLocation()
   }, [])
+
+  const chooseFolder = async () => {
+    const folder = await pickBackupFolder()
+    if (folder) {
+      setBackupFolder(folder)
+      toast(`Backups will be saved to ${folder.name}`)
+    }
+  }
+
+  const resetBackupFolder = async () => {
+    await clearBackupFolder()
+    setBackupFolder(null)
+    toast('Backups will use the browser default location')
+  }
+
+  const saveFolder = () => {
+    const value = setNativeBackupFolder(nativeFolder)
+    setNativeFolder(value)
+    toast('Backup folder saved')
+  }
+
+  const shareLastBackup = async () => {
+    if (!lastBackup) return
+    const ok = await shareBackupNative(lastBackup.filename, lastBackup.uri)
+    if (!ok) toast('Could not open the share sheet', 'error')
+  }
 
   const exportData = async () => {
     setBusyAction('export')
@@ -443,8 +547,23 @@ export function SettingsPage() {
         exportedAt: new Date().toISOString(),
         data,
       }
-      downloadFile(`housesphere-backup-${todayISO()}.json`, JSON.stringify(snapshot, null, 2))
-      toast('Backup downloaded')
+      const filename = `housesphere-backup-${todayISO()}.json`
+      const content = JSON.stringify(snapshot, null, 2)
+
+      if (nativeBackupsAvailable()) {
+        const uri = await saveBackupNative(filename, content)
+        if (uri) {
+          setLastBackup({ filename, uri })
+          toast(`Backup saved to ${getNativeBackupFolder()}`)
+          return
+        }
+      } else if (await writeBackupToFolder(filename, content)) {
+        toast(`Backup saved to ${backupFolder?.name ?? 'your backup folder'}`)
+        return
+      }
+
+      downloadFile(filename, content)
+      toast('Backup downloaded to the browser default location')
     } catch {
       toast('Could not create the backup', 'error')
     } finally {
@@ -550,6 +669,8 @@ export function SettingsPage() {
 
         <AiSettingsCard key={`ai-${settings.updatedAt}`} settings={settings} />
 
+        <ProCard />
+
         <Card className="p-5">
           <div className="mb-1 flex items-center gap-2">
             <DatabaseBackup className="size-4 text-brand" />
@@ -561,6 +682,62 @@ export function SettingsPage() {
               : 'Loading data…'}
           </p>
           <p className="mt-1 text-[11px] text-muted/80">{installedUsage}</p>
+
+          <div className="mt-4 rounded-xl bg-cream px-3.5 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-ink">Backup location</p>
+                <p className="mt-0.5 break-all text-[11px] text-muted">
+                  {nativeBackupsAvailable()
+                    ? `Documents/${nativeFolder}`
+                    : backupFolder
+                      ? `Folder: ${backupFolder.name}`
+                      : folderPickerAvailable()
+                        ? 'Browser default — choose a folder below'
+                        : 'Browser default — this browser cannot pick a folder'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {folderPickerAvailable() && !nativeBackupsAvailable() ? (
+                  <>
+                    <Button size="sm" variant="secondary" onClick={() => void chooseFolder()}>
+                      {backupFolder ? 'Change folder' : 'Choose folder'}
+                    </Button>
+                    {backupFolder ? (
+                      <Button size="sm" variant="ghost" onClick={() => void resetBackupFolder()}>
+                        Use default
+                      </Button>
+                    ) : null}
+                  </>
+                ) : null}
+                {lastBackup ? (
+                  <Button size="sm" variant="secondary" onClick={() => void shareLastBackup()}>
+                    Share last backup
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            {nativeBackupsAvailable() ? (
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <div className="min-w-0 flex-1">
+                  <Field label="Folder under Documents" htmlFor="backup-folder">
+                    <Input
+                      id="backup-folder"
+                      value={nativeFolder}
+                      onChange={(event) => setNativeFolder(event.target.value)}
+                      placeholder="HouseSphere/Backups"
+                    />
+                  </Field>
+                </div>
+                <Button size="sm" onClick={saveFolder}>Save folder</Button>
+              </div>
+            ) : null}
+            <p className="mt-2 text-[11px] text-muted/80">
+              {nativeBackupsAvailable()
+                ? 'Exports are written to this folder. Share the last backup to copy it to Drive, Files or another app.'
+                : 'The chosen folder is remembered on this device and reused for later exports.'}
+            </p>
+          </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <Button variant="secondary" onClick={() => void exportData()} loading={busyAction === 'export'} icon={<Download className="size-4" />}>
@@ -642,8 +819,7 @@ export function SettingsPage() {
             no cloud sync. Export a backup before clearing browser data or changing devices.
           </p>
           <p className="mt-2 text-xs text-muted">
-            The Android version is packaged as a Trusted Web Activity (TWA) so the same codebase ships to the Play Store. TWA setup
-            instructions are in the project README.
+            The mobile apps use Capacitor to ship the same codebase to Google Play and the App Store. Build instructions are in the project README.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted/70">
             <span>Version {APP_VERSION} · Made for homeowners and renters.</span>
@@ -652,6 +828,9 @@ export function SettingsPage() {
             </Link>
             <a href={PRIVACY_POLICY_PATH} className="font-medium text-brand hover:text-brand-dark">
               Privacy policy
+            </a>
+            <a href={TERMS_POLICY_PATH} className="font-medium text-brand hover:text-brand-dark">
+              Terms of use
             </a>
           </div>
         </Card>

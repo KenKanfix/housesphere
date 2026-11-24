@@ -22,16 +22,17 @@ import {
   askAi,
   getAiSetup,
   getAiStatus,
-  getAiUsage,
   scanImage,
   type AiSetup,
   type AiStatus,
-  type AiUsage,
   type ScanKind,
 } from '../lib/ai'
 import { useToast } from '../components/toastContext'
 import { Badge, Button, Card, Field, IconButton, PageHeader, Select, Tabs } from '../components/ui'
 import { PhotoInput } from '../components/PhotoInput'
+import { Paywall } from '../components/Paywall'
+import { useAiUsage, usePro } from '../lib/hooks'
+import { PRO_AI_DAILY_LIMIT } from '../lib/pricing'
 
 const SUGGESTIONS = [
   'What maintenance is due soon?',
@@ -60,7 +61,9 @@ export function Assistant() {
   const [tab, setTab] = useState<'chat' | 'scan'>('chat')
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [setup, setSetup] = useState<AiSetup | null>(null)
-  const [usage, setUsage] = useState<AiUsage>(() => getAiUsage())
+  const usage = useAiUsage()
+  const [paywall, setPaywall] = useState(false)
+  const pro = usePro()
 
   const messages = useLiveQuery(() => db.aiMessages.orderBy('createdAt').toArray(), []) ?? []
   const rooms = useLiveQuery(() => db.rooms.toArray(), []) ?? []
@@ -82,7 +85,6 @@ export function Assistant() {
   const refreshStatus = () => {
     void getAiStatus().then(setStatus)
     void getAiSetup().then(setSetup)
-    setUsage(getAiUsage())
   }
 
   useEffect(() => {
@@ -93,7 +95,6 @@ export function Assistant() {
   useEffect(() => {
     const onFocus = () => {
       void getAiSetup().then(setSetup)
-      setUsage(getAiUsage())
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -117,7 +118,9 @@ export function Assistant() {
       : needsKey
         ? 'Add your key'
         : outOfQuota
-          ? 'Daily limit reached'
+          ? pro
+            ? 'Pro limit reached'
+            : 'Daily limit reached'
           : ownMode
             ? `Your key · ${setup.provider === 'openai' ? 'OpenAI' : 'Gemini'}`
             : `App AI · ${usage.remaining}/${usage.limit}`
@@ -137,8 +140,10 @@ export function Assistant() {
           }
         : outOfQuota
           ? {
-              title: "Today's free limit is used up",
-              body: `You have used all ${usage.limit} free AI actions today. Try again tomorrow, or add your own key in Settings for unlimited use.`,
+              title: pro ? "Today's Pro limit is used up" : "Today's free limit is used up",
+              body: pro
+                ? `You have used all ${usage.limit} Pro AI actions today. Try again tomorrow, or add your own key in Settings for unlimited use.`
+                : `You have used all ${usage.limit} free AI actions today. Upgrade to Pro for ${PRO_AI_DAILY_LIMIT} a day, or add your own key in Settings for unlimited use.`,
             }
           : !ownMode && !serverReady
             ? {
@@ -157,7 +162,6 @@ export function Assistant() {
       const context = await buildHouseholdContext()
       const history = [...messages.map((message) => ({ role: message.role, content: message.content })), { role: 'user' as const, content }]
       const answer = await askAi(history, context)
-      setUsage(getAiUsage())
       await db.aiMessages.put({ id: uid(), role: 'assistant', content: answer, createdAt: now() })
     } catch (error) {
       toast(error instanceof Error ? error.message : 'The assistant could not answer right now.', 'error')
@@ -197,7 +201,6 @@ export function Assistant() {
     setResult(null)
     try {
       const data = await scanImage(kind, photos)
-      setUsage(getAiUsage())
       setResult(data)
       if (kind === 'bill') setBillFrequency(frequencyToDays(asString(data, 'frequency')))
     } catch (error) {
@@ -374,9 +377,20 @@ export function Assistant() {
             <div className="min-w-0 text-sm">
               <p className="font-semibold text-ink">{notice.title}</p>
               <p className="mt-1 text-muted">{notice.body}</p>
-              <Link to="/settings" className="mt-2 inline-flex text-xs font-semibold text-brand hover:text-brand-dark">
-                Open Settings →
-              </Link>
+              <div className="mt-2 flex flex-wrap gap-3">
+                <Link to="/settings" className="inline-flex text-xs font-semibold text-brand hover:text-brand-dark">
+                  Open Settings →
+                </Link>
+                {outOfQuota && !pro ? (
+                  <button
+                    type="button"
+                    onClick={() => setPaywall(true)}
+                    className="inline-flex text-xs font-semibold text-brand hover:text-brand-dark"
+                  >
+                    See Pro plans →
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         </Card>
@@ -683,8 +697,9 @@ export function Assistant() {
 
       <p className="mt-5 text-center text-[11px] text-muted/80">
         AI features use Google Gemini or OpenAI. Your household data stays on this device except for the context sent when you ask a
-        question. The built-in AI includes {usage.limit} free actions per day; your own key is unlimited.
+        question. The built-in AI includes {usage.limit} {pro ? 'Pro' : 'free'} actions per day; your own key is unlimited.
       </p>
+      {paywall ? <Paywall onClose={() => setPaywall(false)} /> : null}
     </div>
   )
 }

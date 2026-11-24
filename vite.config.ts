@@ -79,8 +79,8 @@ export default defineConfig(({ mode }) => {
             { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
           shortcuts: [
-            { name: 'Add inventory item', short_name: 'Inventory', url: '/inventory?new=1', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
-            { name: 'Ask the AI assistant', short_name: 'Assistant', url: '/assistant', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+            { name: 'Add inventory item', short_name: 'Inventory', url: '/#/inventory?new=1', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+            { name: 'Ask the AI assistant', short_name: 'Assistant', url: '/#/assistant', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
           ],
         },
         workbox: {

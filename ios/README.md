@@ -1,77 +1,37 @@
 # HouseSphere for iOS
 
-A small native SwiftUI shell that opens the HouseSphere PWA (`https://housesphere.vercel.app`)
-in a `WKWebView`. It supports swipe-back, pull-to-refresh, external links opening in Safari,
-photo uploads for scanning, and keeps the web app's local data (IndexedDB/localStorage) on the device.
+The iOS app is a Capacitor wrapper around the same React PWA used on the web and on Android.
 
-## Requirements
+## Build locally
 
-- A Mac with **Xcode 16 or newer**.
-- An **Apple Developer Program** membership (for App Store distribution).
-- No CocoaPods, Node.js or other tooling is needed on the Mac.
+From the repository root on a Mac with Xcode installed:
 
-## Open and run
+```powershell
+npm install
+Copy-Item .env.example .env.local
+npm run cap:ios
+```
 
-1. Copy the `ios` folder (or unzip `HouseSphere-iOS.zip`) to the Mac.
-2. Open `ios/HouseSphere.xcodeproj` in Xcode.
-3. Select the **HouseSphere** project → **Signing & Capabilities**.
-   - Choose your Apple Developer **Team**.
-   - Change **Bundle Identifier** if `app.housesphere.ios` is not available in your account.
-     Update the App Store Connect app record to match whatever you choose.
-4. Pick an iPhone simulator or a connected iPhone and press **Run** (⌘R).
+Set `VITE_API_BASE_URL` to the deployed HTTPS host and `VITE_REVENUECAT_API_KEY` to the `appl_…` SDK key before `npm run cap:ios` — both are baked into the bundle at build time. Switch back to the `goog_…` key before any Android build.
 
-The app loads the production site, so make sure the latest web build is deployed first.
+Open `ios/App/App.xcworkspace` in Xcode to run on a simulator or device. `npm run ios:build` produces a release archive.
 
-## Upload to App Store Connect
+## RevenueCat
 
-1. In App Store Connect, create a new app:
-   - Platform: **iOS**
-   - Name: **HouseSphere**
-   - Bundle ID: the same identifier you set in Xcode
-   - SKU: e.g. `housesphere-ios`
-2. In Xcode choose **Any iOS Device (arm64)** as the run destination.
-3. **Product → Archive**.
-4. In the Organizer choose **Distribute App → App Store Connect → Upload**.
-5. Wait for the build to finish processing in App Store Connect, then attach it to the version.
-6. Fill in the listing (description, keywords, screenshots, age rating, category), set the
-   privacy policy URL to `https://housesphere.vercel.app/privacy`, and submit for review.
+- Bundle identifier: `app.housesphere.twa`.
+- Entitlement ID: `pro`.
+- Store product: `pro_monthly`, monthly auto-renewing, US$2.99 in the US.
+- Upload the App Store Connect API Team Key and the In-App Purchase `.p8` key to RevenueCat so products and transactions sync.
+- Use `https://housesphere.vercel.app/terms` as the Terms of Use link in App Store Connect metadata.
 
-For every new upload, increment **Build** (`CURRENT_PROJECT_VERSION`) in the target's
-General settings. Increment **Version** (`MARKETING_VERSION`) for each user-visible release.
+## Package.swift
 
-## App Store review caveats
+`npx cap sync ios` rewrites `ios/App/CapApp-SPM/Package.swift` so the RevenueCat plugin is referenced through a local `node_modules` path. The Filesystem and Share plugins still use local `node_modules` paths, so run `npm install` on the Mac before opening Xcode. Restore the RevenueCat dependency to its remote form after every sync when building without `node_modules`:
 
-Apple's App Review Guideline **4.2 (Minimum Functionality)** rejects apps that are only a
-repackaged website. This project is intentionally a thin wrapper, so review is a real risk.
-To improve the odds, add native value before submitting, for example:
+```swift
+.package(url: "https://github.com/RevenueCat/purchases-capacitor.git", exact: "13.8.0")
+```
 
-- native camera capture for receipts instead of a web file picker;
-- local notifications for maintenance and warranty reminders (APNs);
-- a share extension to save documents/photos into the app;
-- bundled offline content and native screens for the most-used flows.
+and use `.product(name: "RevenuecatPurchasesCapacitor", package: "purchases-capacitor")`.
 
-If you later sell HouseSphere Pro or an AI subscription inside the iOS app, Guideline
-**3.1.1** requires Apple In-App Purchase (or RevenueCat on top of StoreKit) for digital goods.
-Do not link to an external checkout from the iOS build.
-
-Other limitations of the current wrapper:
-
-- The page is loaded from the live site; if the site is down the app shows a retry screen.
-- Offline behaviour depends on WKWebView's service-worker support and what the PWA has cached.
-- Web push notifications are not supported by WKWebView; APNs would need native work.
-- Direct camera capture from `<input capture>` can vary on iOS; the photo library picker works.
-
-## Design and assets
-
-- App icon: `HouseSphere/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png`
-  (1024×1024, no alpha). Regenerate it if the brand mark changes.
-- Accent colour: teal `#0F766E` (`AccentColor`).
-- Launch background: cream `#F4F2EC` (`LaunchBackground`).
-- Bundle display name, version and photo/camera usage strings are in `HouseSphere/Info.plist`.
-- `HouseSphere/PrivacyInfo.xcprivacy` declares no tracking and no collected data types.
-
-## Updating the web app
-
-The iOS shell does not bundle the web assets. Deploy the PWA as usual and the app will pick
-up the new version on next launch/refresh. If you want the app to work fully offline, bundle
-the `dist` output locally and load it from the app sandbox instead of the remote URL.
+The committed file already has the remote form. The app icon is in `ios/App/App/Assets.xcassets/AppIcon.appiconset/`; the original artwork is kept in `store-assets/`.
