@@ -182,8 +182,8 @@ vercel.json          SPA rewrites and headers
 
 ## Data notes
 
-- Clearing site data or uninstalling the PWA removes the local database. Export a backup from **Settings** first.
-- **Settings → Data & backup → Backup location** chooses where exports go. In a Chromium browser, *Choose folder* opens a folder picker and the permission is remembered on the device; other browsers fall back to the normal download. On mobile, exports are written to `Documents/HouseSphere/Backups` by default — change the folder path in Settings or use *Share last backup* to copy a file into Drive/Files. Import still uses the file picker.
+- Clearing site data or uninstalling the PWA removes the local database. Back up from **Settings** first.
+- **Settings → Data & backup → Backup** opens a location prompt before saving. In a Chromium browser you can choose a folder and the permission is remembered on the device; other browsers download normally. On mobile, backups are written to `Documents/HouseSphere/Backups` by default — change the folder path in the prompt or use *Share last backup* to copy a file into Drive/Files. **Restore** still uses the file picker.
 - Settings includes one-click demo data for exploring the app.
 - Currency defaults to AUD and can be changed in **Settings**.
 - Notifications are local only and require OS/browser permission.

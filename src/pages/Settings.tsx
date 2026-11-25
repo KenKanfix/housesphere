@@ -55,9 +55,12 @@ import {
   ConfirmDialog,
   Field,
   Input,
+  Modal,
   PageHeader,
   Select,
 } from '../components/ui'
+
+type BackupTarget = 'native' | 'folder' | 'download'
 
 const TABLES = [
   'rooms',
@@ -465,6 +468,7 @@ export function SettingsPage() {
   const [confirmClear, setConfirmClear] = useState(false)
   const [importing, setImporting] = useState(false)
   const [busyAction, setBusyAction] = useState('')
+  const [backupDialogOpen, setBackupDialogOpen] = useState(false)
   const [backupFolder, setBackupFolder] = useState<BackupFolder | null>(null)
   const [nativeFolder, setNativeFolder] = useState(getNativeBackupFolder)
   const [lastBackup, setLastBackup] = useState<{ filename: string; uri: string } | null>(null)
@@ -497,22 +501,8 @@ export function SettingsPage() {
 
   const chooseFolder = async () => {
     const folder = await pickBackupFolder()
-    if (folder) {
-      setBackupFolder(folder)
-      toast(`Backups will be saved to ${folder.name}`)
-    }
-  }
-
-  const resetBackupFolder = async () => {
-    await clearBackupFolder()
-    setBackupFolder(null)
-    toast('Backups will use the browser default location')
-  }
-
-  const saveFolder = () => {
-    const value = setNativeBackupFolder(nativeFolder)
-    setNativeFolder(value)
-    toast('Backup folder saved')
+    if (folder) setBackupFolder(folder)
+    return folder
   }
 
   const shareLastBackup = async () => {
@@ -521,7 +511,7 @@ export function SettingsPage() {
     if (!ok) toast('Could not open the share sheet', 'error')
   }
 
-  const exportData = async () => {
+  const exportData = async (target: BackupTarget = 'native') => {
     setBusyAction('export')
     try {
       const data: Record<string, unknown[]> = {}
@@ -550,14 +540,14 @@ export function SettingsPage() {
       const filename = `housesphere-backup-${todayISO()}.json`
       const content = JSON.stringify(snapshot, null, 2)
 
-      if (nativeBackupsAvailable()) {
+      if (target !== 'download' && nativeBackupsAvailable()) {
         const uri = await saveBackupNative(filename, content)
         if (uri) {
           setLastBackup({ filename, uri })
           toast(`Backup saved to ${getNativeBackupFolder()}`)
           return
         }
-      } else if (await writeBackupToFolder(filename, content)) {
+      } else if (target !== 'download' && (await writeBackupToFolder(filename, content))) {
         toast(`Backup saved to ${backupFolder?.name ?? 'your backup folder'}`)
         return
       }
@@ -569,6 +559,29 @@ export function SettingsPage() {
     } finally {
       setBusyAction('')
     }
+  }
+
+  const backupToDefault = async (forgetFolder = false) => {
+    if (forgetFolder) {
+      await clearBackupFolder()
+      setBackupFolder(null)
+    }
+    setBackupDialogOpen(false)
+    await exportData('download')
+  }
+
+  const backupToFolder = async () => {
+    const folder = await chooseFolder()
+    if (!folder) return
+    setBackupDialogOpen(false)
+    await exportData('folder')
+  }
+
+  const backupToNativeFolder = async (useDefault = false) => {
+    const value = setNativeBackupFolder(useDefault ? '' : nativeFolder)
+    setNativeFolder(value)
+    setBackupDialogOpen(false)
+    await exportData('native')
   }
 
   const importData = async (file?: File) => {
@@ -618,10 +631,10 @@ export function SettingsPage() {
         },
       )
       await ensureDefaults()
-      toast('Backup imported')
+      toast('Backup restored')
       estimateStorage()
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Could not import that file', 'error')
+      toast(error instanceof Error ? error.message : 'Could not restore that file', 'error')
     } finally {
       setImporting(false)
       if (importRef.current) importRef.current.value = ''
@@ -692,56 +705,25 @@ export function SettingsPage() {
                     ? `Documents/${nativeFolder}`
                     : backupFolder
                       ? `Folder: ${backupFolder.name}`
-                      : folderPickerAvailable()
-                        ? 'Browser default — choose a folder below'
-                        : 'Browser default — this browser cannot pick a folder'}
+                      : 'Browser default'}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {folderPickerAvailable() && !nativeBackupsAvailable() ? (
-                  <>
-                    <Button size="sm" variant="secondary" onClick={() => void chooseFolder()}>
-                      {backupFolder ? 'Change folder' : 'Choose folder'}
-                    </Button>
-                    {backupFolder ? (
-                      <Button size="sm" variant="ghost" onClick={() => void resetBackupFolder()}>
-                        Use default
-                      </Button>
-                    ) : null}
-                  </>
-                ) : null}
-                {lastBackup ? (
-                  <Button size="sm" variant="secondary" onClick={() => void shareLastBackup()}>
-                    Share last backup
-                  </Button>
-                ) : null}
-              </div>
+              {lastBackup ? (
+                <Button size="sm" variant="secondary" onClick={() => void shareLastBackup()}>
+                  Share last backup
+                </Button>
+              ) : null}
             </div>
-            {nativeBackupsAvailable() ? (
-              <div className="mt-3 flex flex-wrap items-end gap-2">
-                <div className="min-w-0 flex-1">
-                  <Field label="Folder under Documents" htmlFor="backup-folder">
-                    <Input
-                      id="backup-folder"
-                      value={nativeFolder}
-                      onChange={(event) => setNativeFolder(event.target.value)}
-                      placeholder="HouseSphere/Backups"
-                    />
-                  </Field>
-                </div>
-                <Button size="sm" onClick={saveFolder}>Save folder</Button>
-              </div>
-            ) : null}
             <p className="mt-2 text-[11px] text-muted/80">
               {nativeBackupsAvailable()
-                ? 'Exports are written to this folder. Share the last backup to copy it to Drive, Files or another app.'
-                : 'The chosen folder is remembered on this device and reused for later exports.'}
+                ? 'Choose the folder when you back up. Share the last backup to copy it to Drive, Files or another app.'
+                : 'Choose a location when you back up. A chosen folder is remembered on this device.'}
             </p>
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Button variant="secondary" onClick={() => void exportData()} loading={busyAction === 'export'} icon={<Download className="size-4" />}>
-              Export backup
+            <Button variant="secondary" onClick={() => setBackupDialogOpen(true)} icon={<Download className="size-4" />}>
+              Backup
             </Button>
             <Button
               variant="secondary"
@@ -749,7 +731,7 @@ export function SettingsPage() {
               loading={importing}
               icon={<Upload className="size-4" />}
             >
-              Import backup
+              Restore
             </Button>
             <Button variant="secondary" onClick={() => void loadDemo()} loading={busyAction === 'demo'} icon={<HardDriveDownload className="size-4" />}>
               Load sample data
@@ -816,7 +798,7 @@ export function SettingsPage() {
           </div>
           <p className="mt-2 text-xs text-muted">
             HouseSphere is a local-first household management app. Everything you add is stored in IndexedDB on this device — no account and
-            no cloud sync. Export a backup before clearing browser data or changing devices.
+            no cloud sync. Back up your data before clearing browser data or changing devices.
           </p>
           <p className="mt-2 text-xs text-muted">
             The mobile apps use Capacitor to ship the same codebase to Google Play and the App Store. Build instructions are in the project README.
@@ -836,10 +818,92 @@ export function SettingsPage() {
         </Card>
       </div>
 
+      <Modal
+        open={backupDialogOpen}
+        onClose={() => setBackupDialogOpen(false)}
+        title="Back up HouseSphere"
+        description="Choose where to save this backup."
+        footer={
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={() => setBackupDialogOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          {nativeBackupsAvailable() ? (
+            <>
+              <Field label="Folder under Documents" htmlFor="backup-folder">
+                <Input
+                  id="backup-folder"
+                  value={nativeFolder}
+                  onChange={(event) => setNativeFolder(event.target.value)}
+                  placeholder="HouseSphere/Backups"
+                />
+              </Field>
+              <p className="text-[11px] text-muted/80">Documents/{nativeFolder || 'HouseSphere/Backups'}</p>
+              <Button
+                className="w-full"
+                onClick={() => void backupToNativeFolder()}
+                loading={busyAction === 'export'}
+                icon={<Download className="size-4" />}
+              >
+                Save backup here
+              </Button>
+              <Button className="w-full" variant="secondary" onClick={() => void backupToNativeFolder(true)} loading={busyAction === 'export'}>
+                Use default folder
+              </Button>
+            </>
+          ) : folderPickerAvailable() ? (
+            <>
+              <Button
+                className="w-full"
+                variant={backupFolder ? 'secondary' : 'primary'}
+                onClick={() => void backupToDefault(Boolean(backupFolder))}
+                loading={busyAction === 'export'}
+                icon={<Download className="size-4" />}
+              >
+                {backupFolder ? 'Browser default (forget folder)' : 'Browser default'}
+              </Button>
+              {backupFolder ? (
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  onClick={() => void backupToDefault()}
+                  loading={busyAction === 'export'}
+                  icon={<DatabaseBackup className="size-4" />}
+                >
+                  Last folder: {backupFolder.name}
+                </Button>
+              ) : null}
+              <Button className="w-full" variant="secondary" onClick={() => void backupToFolder()} icon={<DatabaseBackup className="size-4" />}>
+                {backupFolder ? 'Choose a different folder' : 'Choose folder'}
+              </Button>
+              <p className="text-[11px] text-muted/80">
+                A folder you choose is remembered for later backups. Browser default downloads the file normally.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted/80">This browser cannot choose a folder, so the backup will download normally.</p>
+              <Button
+                className="w-full"
+                onClick={() => void backupToDefault()}
+                loading={busyAction === 'export'}
+                icon={<Download className="size-4" />}
+              >
+                Save backup
+              </Button>
+            </>
+          )}
+        </div>
+      </Modal>
+
       <ConfirmDialog
         open={confirmClear}
         title="Clear all HouseSphere data?"
-        message="Every item, receipt, document, project and expense stored on this device will be permanently deleted. Export a backup first if you want to keep it."
+        message="Every item, receipt, document, project and expense stored on this device will be permanently deleted. Back up your data first if you want to keep it."
         confirmLabel="Delete everything"
         onConfirm={() => void clearAll()}
         onCancel={() => setConfirmClear(false)}
